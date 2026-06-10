@@ -1,0 +1,29 @@
+services:
+  master:
+    build: .
+    command: ["--port", "6380", "--aof", "/data/master.aof"]
+    ports:
+      - "6380:6380"
+    volumes:
+      - master_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "cat /proc/1/status | grep -q State"]
+      interval: 2s
+      timeout: 3s
+      retries: 5
+      start_period: 3s
+
+  replica:
+    build: .
+    command: ["--port", "6381", "--aof", "/data/replica.aof", "--replicaof", "master", "6380"]
+    ports:
+      - "6381:6381"
+    depends_on:
+      master:
+        condition: service_healthy
+    volumes:
+      - replica_data:/data
+
+volumes:
+  master_data:
+  replica_data:

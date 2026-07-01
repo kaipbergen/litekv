@@ -1,0 +1,72 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: litekv-master
+  namespace: litekv
+  labels:
+    app: litekv
+    role: master
+spec:
+  clusterIP: None # headless: stable DNS (litekv-master-0.litekv-master...) required by the StatefulSet, and also used as the replication target
+  selector:
+    app: litekv
+    role: master
+  ports:
+    - name: resp
+      port: 6380
+      targetPort: 6380
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: litekv-master
+  namespace: litekv
+spec:
+  serviceName: litekv-master
+  replicas: 1
+  selector:
+    matchLabels:
+      app: litekv
+      role: master
+  template:
+    metadata:
+      labels:
+        app: litekv
+        role: master
+    spec:
+      containers:
+        - name: litekv
+          image: litekv:latest
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: litekv-config
+          args:
+            - "--port"
+            - "$(MASTER_PORT)"
+            - "--aof"
+            - "$(MASTER_AOF_PATH)"
+          ports:
+            - name: resp
+              containerPort: 6380
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          readinessProbe:
+            tcpSocket:
+              port: 6380
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket:
+              port: 6380
+            initialDelaySeconds: 5
+            periodSeconds: 10
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi

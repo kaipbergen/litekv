@@ -1,0 +1,92 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: litekv-replica
+  namespace: litekv
+  labels:
+    app: litekv
+    role: replica
+spec:
+  clusterIP: None # headless, same rationale as litekv-master
+  selector:
+    app: litekv
+    role: replica
+  ports:
+    - name: resp
+      port: 6380
+      targetPort: 6380
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: litekv-replica
+  namespace: litekv
+spec:
+  serviceName: litekv-replica
+  replicas: 1
+  selector:
+    matchLabels:
+      app: litekv
+      role: replica
+  template:
+    metadata:
+      labels:
+        app: litekv
+        role: replica
+    spec:
+      initContainers:
+        # StatefulSet pods are created in parallel with no ordering guarantee relative to
+        # other StatefulSets, so wait for the master Service to have a resolvable endpoint
+        # before starting the replica (mirrors depends_on/healthcheck in docker-compose.yml).
+        - name: wait-for-master
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z -w2 "$MASTER_SVC_HOST" "$MASTER_SVC_PORT"; do
+                echo "waiting for litekv-master...";
+                sleep 2;
+              done
+          envFrom:
+            - configMapRef:
+                name: litekv-config
+      containers:
+        - name: litekv
+          image: litekv:latest
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: litekv-config
+          args:
+            - "--port"
+            - "$(REPLICA_PORT)"
+            - "--aof"
+            - "$(REPLICA_AOF_PATH)"
+            - "--replicaof"
+            - "$(MASTER_SVC_HOST)"
+            - "$(MASTER_SVC_PORT)"
+          ports:
+            - name: resp
+              containerPort: 6380
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          readinessProbe:
+            tcpSocket:
+              port: 6380
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket:
+              port: 6380
+            initialDelaySeconds: 5
+            periodSeconds: 10
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi

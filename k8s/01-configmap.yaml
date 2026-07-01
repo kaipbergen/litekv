@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: litekv-config
+  namespace: litekv
+data:
+  MASTER_PORT: "6380"
+  MASTER_AOF_PATH: "/data/master.aof"
+  REPLICA_PORT: "6380"
+  REPLICA_AOF_PATH: "/data/replica.aof"
+  # DNS name of the master headless Service + the port replicas dial to replicate from.
+  MASTER_SVC_HOST: "litekv-master"
+  MASTER_SVC_PORT: "6380"

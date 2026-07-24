@@ -83,7 +83,7 @@ std::optional<std::string> Storage::get(const std::string& key) {
     return it->second.first.value;
 }
 
-std::optional<long long> Storage::incr(const std::string& key) {
+std::optional<long long> Storage::incrby(const std::string& key, long long delta) {
     std::lock_guard<std::mutex> lock(mutex_);
 
     auto it = data_.find(key);
@@ -105,7 +105,7 @@ std::optional<long long> Storage::incr(const std::string& key) {
         }
     }
 
-    long long updated = current + 1;
+    long long updated = current + delta;
     std::string value_str = std::to_string(updated);
 
     if (it != data_.end()) {

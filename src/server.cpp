@@ -232,7 +232,7 @@ std::string Server::process_command(std::string_view raw, bool from_master) {
     if (cmd.name.empty()) return Parser::error_response("empty command");
 
     if (role_ == Role::REPLICA && !from_master) {
-        if (cmd.name == "SET" || cmd.name == "DEL" || cmd.name == "FLUSHALL") {
+        if (cmd.name == "SET" || cmd.name == "DEL" || cmd.name == "FLUSHALL" || cmd.name == "INCR") {
             return Parser::error_response("READONLY You can't write against a read only replica");
         }
     }
@@ -267,6 +267,16 @@ std::string Server::process_command(std::string_view raw, bool from_master) {
             propagate_to_replicas(raw_copy);
         }
         return Parser::integer_response(deleted ? 1 : 0);
+    }
+    else if (cmd.name == "INCR") {
+        if (cmd.args.size() < 1) return Parser::error_response("wrong number of arguments for INCR");
+        auto result = storage_.incr(cmd.args[0]);
+        if (!result.has_value()) return Parser::error_response("value is not an integer or out of range");
+        if (role_ == Role::MASTER) {
+            std::string raw_copy(raw);
+            propagate_to_replicas(raw_copy);
+        }
+        return Parser::integer_response(result.value());
     }
     else if (cmd.name == "EXISTS") {
         if (cmd.args.size() < 1) return Parser::error_response("wrong number of arguments for EXISTS");

@@ -18,7 +18,7 @@ public:
     static std::string error_response(std::string_view msg);
     static std::string bulk_response(std::string_view value);
     static std::string null_response();
-    static std::string integer_response(int value);
+    static std::string integer_response(long long value);
 };
 
 } // namespace litekv

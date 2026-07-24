@@ -7,7 +7,7 @@ if an item can't be completed and verified, it stays unchecked and gets picked u
 Progress is tracked by checking items off below (`- [ ]` → `- [x] (Day N, YYYY-MM-DD)`).
 
 ## Strings & core commands
-- [ ] INCR
+- [x] INCR (Day 1, 2026-07-24)
 - [ ] Fix replica auto-reconnect with retry + backoff (found during k8s testing — replica currently never retries a dropped master connection)
 - [ ] Full resync on reconnect (replica requests a full dataset dump from master instead of only tailing new commands)
 - [ ] INCRBY / DECRBY

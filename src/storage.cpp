@@ -83,6 +83,48 @@ std::optional<std::string> Storage::get(const std::string& key) {
     return it->second.first.value;
 }
 
+std::optional<long long> Storage::incr(const std::string& key) {
+    std::lock_guard<std::mutex> lock(mutex_);
+
+    auto it = data_.find(key);
+    if (it != data_.end() && is_expired(it->second.first)) {
+        lru_list_.erase(it->second.second);
+        data_.erase(it);
+        it = data_.end();
+    }
+
+    long long current = 0;
+    if (it != data_.end()) {
+        const std::string& val = it->second.first.value;
+        try {
+            size_t pos;
+            current = std::stoll(val, &pos);
+            if (pos != val.size()) return std::nullopt;
+        } catch (...) {
+            return std::nullopt;
+        }
+    }
+
+    long long updated = current + 1;
+    std::string value_str = std::to_string(updated);
+
+    if (it != data_.end()) {
+        it->second.first.value = value_str;
+        lru_list_.erase(it->second.second);
+        lru_list_.push_front(key);
+        it->second.second = lru_list_.begin();
+    } else {
+        evict_lru();
+        Entry entry;
+        entry.value = value_str;
+        lru_list_.push_front(key);
+        data_[key] = {std::move(entry), lru_list_.begin()};
+    }
+
+    append_aof("SET " + key + " " + value_str);
+    return updated;
+}
+
 bool Storage::del(const std::string& key) {
     std::lock_guard<std::mutex> lock(mutex_);
     auto it = data_.find(key);

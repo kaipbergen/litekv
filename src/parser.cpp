@@ -84,7 +84,7 @@ std::string Parser::bulk_response(std::string_view value) {
 
 std::string Parser::null_response() { return "$-1\r\n"; }
 
-std::string Parser::integer_response(int value) {
+std::string Parser::integer_response(long long value) {
     return ":" + std::to_string(value) + "\r\n";
 }
 

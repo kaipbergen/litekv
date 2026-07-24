@@ -23,6 +23,7 @@ public:
     void set(const std::string& key, const std::string& value, int ttl_seconds = -1);
     std::optional<std::string> get(const std::string& key);
     bool del(const std::string& key);
+    std::optional<long long> incr(const std::string& key);
     bool exists(const std::string& key);
     int ttl(const std::string& key);
     void flush();

@@ -88,4 +88,12 @@ std::string Parser::integer_response(long long value) {
     return ":" + std::to_string(value) + "\r\n";
 }
 
+std::string Parser::encode_command(const std::vector<std::string>& tokens) {
+    std::string out = "*" + std::to_string(tokens.size()) + "\r\n";
+    for (const auto& t : tokens) {
+        out += "$" + std::to_string(t.size()) + "\r\n" + t + "\r\n";
+    }
+    return out;
+}
+
 } // namespace litekv

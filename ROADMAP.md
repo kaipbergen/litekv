@@ -9,7 +9,7 @@ Progress is tracked by checking items off below (`- [ ]` → `- [x] (Day N, YYYY
 ## Strings & core commands
 - [x] INCR (Day 1, 2026-07-24)
 - [x] Fix replica auto-reconnect with retry + backoff (Day 1, 2026-07-24)
-- [ ] Full resync on reconnect (replica requests a full dataset dump from master instead of only tailing new commands)
+- [x] Full resync on reconnect (Day 1, 2026-07-24)
 - [ ] INCRBY / DECRBY
 - [ ] Unit test framework setup (Catch2) + first tests for storage.cpp
 - [ ] APPEND

@@ -7,6 +7,7 @@
 #include <optional>
 #include <chrono>
 #include <fstream>
+#include <vector>
 
 namespace litekv {
 
@@ -29,6 +30,7 @@ public:
     void flush();
     void load_aof();
     size_t size() const;
+    std::vector<std::vector<std::string>> dump_commands();
 
 private:
     // LRU: list stores keys in order (front = most recent)

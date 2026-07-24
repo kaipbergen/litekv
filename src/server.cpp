@@ -137,6 +137,7 @@ void Server::epoll_loop() {
                         }
                         std::string resp = "+OK\r\n";
                         send(fd, resp.c_str(), resp.size(), 0);
+                        send_full_resync(fd);
                         cbuf.clear();
                         break;
                     }
@@ -210,6 +211,7 @@ void Server::handle_client(int client_fd) {
             replicas_.push_back(client_fd);
             std::string resp = "+OK\r\n";
             send(client_fd, resp.c_str(), resp.size(), 0);
+            send_full_resync(client_fd);
             continue;
         }
 
@@ -223,6 +225,13 @@ void Server::propagate_to_replicas(const std::string& cmd) {
     std::lock_guard<std::mutex> lock(replicas_mutex_);
     for (int fd : replicas_) {
         send(fd, cmd.c_str(), cmd.size(), 0);
+    }
+}
+
+void Server::send_full_resync(int fd) {
+    for (const auto& cmd : storage_.dump_commands()) {
+        std::string encoded = Parser::encode_command(cmd);
+        send(fd, encoded.c_str(), encoded.size(), 0);
     }
 }
 
@@ -379,16 +388,45 @@ void Server::connect_to_master() {
 }
 
 void Server::replica_loop(int master_fd) {
-    char buffer[4096];
+    char chunk[4096];
+    std::string buffer;
     while (running_) {
-        memset(buffer, 0, sizeof(buffer));
-        ssize_t bytes = recv(master_fd, buffer, sizeof(buffer) - 1, 0);
+        ssize_t bytes = recv(master_fd, chunk, sizeof(chunk), 0);
         if (bytes <= 0) {
             std::cerr << "Replica: lost connection to master" << std::endl;
             break;
         }
-        std::string_view raw(buffer, bytes);
-        process_command(raw, true);
+        buffer.append(chunk, bytes);
+
+        while (!buffer.empty()) {
+            if (buffer[0] == '*') {
+                size_t end = buffer.find("\r\n");
+                if (end == std::string::npos) break;
+                int count = std::stoi(buffer.substr(1, end - 1));
+                size_t pos = end + 2;
+                bool complete = true;
+                for (int j = 0; j < count; j++) {
+                    size_t dollar = buffer.find('$', pos);
+                    if (dollar == std::string::npos) { complete = false; break; }
+                    size_t len_end = buffer.find("\r\n", dollar);
+                    if (len_end == std::string::npos) { complete = false; break; }
+                    int len = std::stoi(buffer.substr(dollar + 1, len_end - dollar - 1));
+                    pos = len_end + 2 + len + 2;
+                    if (pos > buffer.size()) { complete = false; break; }
+                }
+                if (!complete) break;
+
+                std::string msg = buffer.substr(0, pos);
+                buffer.erase(0, pos);
+                process_command(msg, true);
+            } else {
+                size_t end = buffer.find("\r\n");
+                if (end == std::string::npos) break;
+                std::string msg = buffer.substr(0, end + 2);
+                buffer.erase(0, end + 2);
+                process_command(msg, true);
+            }
+        }
     }
     close(master_fd);
 }

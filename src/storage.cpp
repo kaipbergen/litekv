@@ -174,6 +174,28 @@ size_t Storage::size() const {
     return data_.size();
 }
 
+std::vector<std::vector<std::string>> Storage::dump_commands() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    std::vector<std::vector<std::string>> commands;
+    auto now = std::chrono::steady_clock::now();
+    for (const auto& [key, pair] : data_) {
+        const Entry& entry = pair.first;
+        if (entry.expires_at.has_value() && now > entry.expires_at.value()) continue;
+
+        std::vector<std::string> cmd = {"SET", key, entry.value};
+        if (entry.expires_at.has_value()) {
+            auto remaining = std::chrono::duration_cast<std::chrono::seconds>(
+                entry.expires_at.value() - now).count();
+            if (remaining > 0) {
+                cmd.push_back("EX");
+                cmd.push_back(std::to_string(remaining));
+            }
+        }
+        commands.push_back(std::move(cmd));
+    }
+    return commands;
+}
+
 void Storage::load_aof() {
     std::ifstream file(aof_path_);
     if (!file.is_open()) return;

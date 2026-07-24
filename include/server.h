@@ -37,6 +37,7 @@ private:
     void handle_client(int client_fd);
     std::string process_command(std::string_view raw, bool from_master = false);
     void propagate_to_replicas(const std::string& cmd);
+    void send_full_resync(int fd);
     void connect_to_master();
     int try_connect_to_master();
     void replica_loop(int master_fd);

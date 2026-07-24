@@ -306,11 +306,11 @@ std::string Server::process_command(std::string_view raw, bool from_master) {
     return Parser::error_response("unknown command '" + cmd.name + "'");
 }
 
-void Server::connect_to_master() {
+int Server::try_connect_to_master() {
     int fd = -1;
     int retries = 10;
 
-    while (retries-- > 0) {
+    while (retries-- > 0 && running_) {
         fd = socket(AF_INET, SOCK_STREAM, 0);
         if (fd < 0) { std::this_thread::sleep_for(std::chrono::seconds(1)); continue; }
 
@@ -328,7 +328,7 @@ void Server::connect_to_master() {
 
         if (connect(fd, res->ai_addr, res->ai_addrlen) == 0) {
             freeaddrinfo(res);
-            break;
+            return fd;
         }
 
         freeaddrinfo(res);
@@ -337,21 +337,45 @@ void Server::connect_to_master() {
         std::this_thread::sleep_for(std::chrono::seconds(2));
     }
 
-    if (fd < 0) {
-        std::cerr << "Replica: failed to connect to master after retries" << std::endl;
-        return;
+    return -1;
+}
+
+void Server::connect_to_master() {
+    const int max_backoff_seconds = 30;
+    int backoff_seconds = 1;
+
+    while (running_) {
+        int fd = try_connect_to_master();
+
+        if (fd < 0) {
+            std::cerr << "Replica: failed to connect to master after retries, backing off "
+                      << backoff_seconds << "s" << std::endl;
+            std::this_thread::sleep_for(std::chrono::seconds(backoff_seconds));
+            backoff_seconds = std::min(backoff_seconds * 2, max_backoff_seconds);
+            continue;
+        }
+
+        backoff_seconds = 1;
+
+        std::string replconf = "*1\r\n$8\r\nREPLCONF\r\n";
+        send(fd, replconf.c_str(), replconf.size(), 0);
+
+        char buf[64];
+        recv(fd, buf, sizeof(buf), 0);
+
+        master_fd_ = fd;
+        std::cout << "Replica connected to master " << master_host_ << ":" << master_port_ << std::endl;
+
+        replica_loop(fd);
+        master_fd_ = -1;
+
+        if (!running_) break;
+
+        std::cerr << "Replica: lost connection to master, reconnecting in "
+                  << backoff_seconds << "s" << std::endl;
+        std::this_thread::sleep_for(std::chrono::seconds(backoff_seconds));
+        backoff_seconds = std::min(backoff_seconds * 2, max_backoff_seconds);
     }
-
-    std::string replconf = "*1\r\n$8\r\nREPLCONF\r\n";
-    send(fd, replconf.c_str(), replconf.size(), 0);
-
-    char buf[64];
-    recv(fd, buf, sizeof(buf), 0);
-
-    master_fd_ = fd;
-    std::cout << "Replica connected to master " << master_host_ << ":" << master_port_ << std::endl;
-
-    replica_loop(fd);
 }
 
 void Server::replica_loop(int master_fd) {

@@ -38,6 +38,7 @@ private:
     std::string process_command(std::string_view raw, bool from_master = false);
     void propagate_to_replicas(const std::string& cmd);
     void connect_to_master();
+    int try_connect_to_master();
     void replica_loop(int master_fd);
 
 #ifdef __linux__

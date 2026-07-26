@@ -125,6 +125,36 @@ std::optional<long long> Storage::incrby(const std::string& key, long long delta
     return updated;
 }
 
+long long Storage::append(const std::string& key, const std::string& value) {
+    std::lock_guard<std::mutex> lock(mutex_);
+
+    auto it = data_.find(key);
+    if (it != data_.end() && is_expired(it->second.first)) {
+        lru_list_.erase(it->second.second);
+        data_.erase(it);
+        it = data_.end();
+    }
+
+    std::string new_value;
+    if (it != data_.end()) {
+        new_value = it->second.first.value + value;
+        it->second.first.value = new_value;
+        lru_list_.erase(it->second.second);
+        lru_list_.push_front(key);
+        it->second.second = lru_list_.begin();
+    } else {
+        new_value = value;
+        evict_lru();
+        Entry entry;
+        entry.value = new_value;
+        lru_list_.push_front(key);
+        data_[key] = {std::move(entry), lru_list_.begin()};
+    }
+
+    append_aof("SET " + key + " " + new_value);
+    return static_cast<long long>(new_value.size());
+}
+
 bool Storage::del(const std::string& key) {
     std::lock_guard<std::mutex> lock(mutex_);
     auto it = data_.find(key);

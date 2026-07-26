@@ -96,6 +96,27 @@ TEST_CASE("ttl reports -1 for no expiry and -2 for missing key", "[storage]") {
     REQUIRE(storage.ttl("persistent") == -1);
 }
 
+TEST_CASE("append creates key when missing and returns new length", "[storage]") {
+    auto path = temp_aof_path("append_new");
+    std::remove(path.c_str());
+    Storage storage(path);
+
+    auto len = storage.append("greeting", "Hello");
+    REQUIRE(len == 5);
+    REQUIRE(storage.get("greeting").value() == "Hello");
+}
+
+TEST_CASE("append concatenates onto existing value", "[storage]") {
+    auto path = temp_aof_path("append_existing");
+    std::remove(path.c_str());
+    Storage storage(path);
+
+    storage.set("greeting", "Hello");
+    auto len = storage.append("greeting", "World");
+    REQUIRE(len == 10);
+    REQUIRE(storage.get("greeting").value() == "HelloWorld");
+}
+
 TEST_CASE("flush clears all keys", "[storage]") {
     auto path = temp_aof_path("flush");
     std::remove(path.c_str());

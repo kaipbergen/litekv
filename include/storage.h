@@ -25,6 +25,7 @@ public:
     std::optional<std::string> get(const std::string& key);
     bool del(const std::string& key);
     std::optional<long long> incrby(const std::string& key, long long delta);
+    long long append(const std::string& key, const std::string& value);
     bool exists(const std::string& key);
     int ttl(const std::string& key);
     void flush();

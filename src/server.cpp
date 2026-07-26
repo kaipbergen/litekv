@@ -242,7 +242,8 @@ std::string Server::process_command(std::string_view raw, bool from_master) {
 
     if (role_ == Role::REPLICA && !from_master) {
         if (cmd.name == "SET" || cmd.name == "DEL" || cmd.name == "FLUSHALL" ||
-            cmd.name == "INCR" || cmd.name == "INCRBY" || cmd.name == "DECRBY") {
+            cmd.name == "INCR" || cmd.name == "INCRBY" || cmd.name == "DECRBY" ||
+            cmd.name == "APPEND") {
             return Parser::error_response("READONLY You can't write against a read only replica");
         }
     }
@@ -306,6 +307,15 @@ std::string Server::process_command(std::string_view raw, bool from_master) {
             propagate_to_replicas(raw_copy);
         }
         return Parser::integer_response(result.value());
+    }
+    else if (cmd.name == "APPEND") {
+        if (cmd.args.size() < 2) return Parser::error_response("wrong number of arguments for APPEND");
+        long long new_len = storage_.append(cmd.args[0], cmd.args[1]);
+        if (role_ == Role::MASTER) {
+            std::string raw_copy(raw);
+            propagate_to_replicas(raw_copy);
+        }
+        return Parser::integer_response(new_len);
     }
     else if (cmd.name == "EXISTS") {
         if (cmd.args.size() < 1) return Parser::error_response("wrong number of arguments for EXISTS");

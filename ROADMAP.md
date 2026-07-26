@@ -14,7 +14,7 @@ Progress is tracked by checking items off below (`- [ ]` → `- [x] (Day N, YYYY
 - [x] Unit test framework setup (Catch2) + first tests for storage.cpp (Day 2, 2026-07-26)
 - [x] APPEND (Day 2, 2026-07-26)
 - [x] STRLEN (Day 2, 2026-07-26)
-- [ ] GitHub Actions CI (build + run tests on every push)
+- [x] GitHub Actions CI (build + run tests on every push) (Day 2, 2026-07-26)
 - [ ] MSET / MGET
 - [ ] GETSET
 - [ ] SETNX

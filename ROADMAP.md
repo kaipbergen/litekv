@@ -13,7 +13,7 @@ Progress is tracked by checking items off below (`- [ ]` → `- [x] (Day N, YYYY
 - [x] INCRBY / DECRBY (Day 1, 2026-07-24)
 - [x] Unit test framework setup (Catch2) + first tests for storage.cpp (Day 2, 2026-07-26)
 - [x] APPEND (Day 2, 2026-07-26)
-- [ ] STRLEN
+- [x] STRLEN (Day 2, 2026-07-26)
 - [ ] GitHub Actions CI (build + run tests on every push)
 - [ ] MSET / MGET
 - [ ] GETSET

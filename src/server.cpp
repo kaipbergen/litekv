@@ -317,6 +317,10 @@ std::string Server::process_command(std::string_view raw, bool from_master) {
         }
         return Parser::integer_response(new_len);
     }
+    else if (cmd.name == "STRLEN") {
+        if (cmd.args.size() < 1) return Parser::error_response("wrong number of arguments for STRLEN");
+        return Parser::integer_response(storage_.strlen(cmd.args[0]));
+    }
     else if (cmd.name == "EXISTS") {
         if (cmd.args.size() < 1) return Parser::error_response("wrong number of arguments for EXISTS");
         return Parser::integer_response(storage_.exists(cmd.args[0]) ? 1 : 0);

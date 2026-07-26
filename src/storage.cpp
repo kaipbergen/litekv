@@ -155,6 +155,18 @@ long long Storage::append(const std::string& key, const std::string& value) {
     return static_cast<long long>(new_value.size());
 }
 
+long long Storage::strlen(const std::string& key) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto it = data_.find(key);
+    if (it == data_.end()) return 0;
+    if (is_expired(it->second.first)) {
+        lru_list_.erase(it->second.second);
+        data_.erase(it);
+        return 0;
+    }
+    return static_cast<long long>(it->second.first.value.size());
+}
+
 bool Storage::del(const std::string& key) {
     std::lock_guard<std::mutex> lock(mutex_);
     auto it = data_.find(key);

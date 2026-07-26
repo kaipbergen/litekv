@@ -117,6 +117,16 @@ TEST_CASE("append concatenates onto existing value", "[storage]") {
     REQUIRE(storage.get("greeting").value() == "HelloWorld");
 }
 
+TEST_CASE("strlen returns value length or zero for missing key", "[storage]") {
+    auto path = temp_aof_path("strlen");
+    std::remove(path.c_str());
+    Storage storage(path);
+
+    REQUIRE(storage.strlen("missing") == 0);
+    storage.set("greeting", "hello");
+    REQUIRE(storage.strlen("greeting") == 5);
+}
+
 TEST_CASE("flush clears all keys", "[storage]") {
     auto path = temp_aof_path("flush");
     std::remove(path.c_str());

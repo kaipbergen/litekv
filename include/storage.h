@@ -27,6 +27,8 @@ public:
     std::optional<long long> incrby(const std::string& key, long long delta);
     long long append(const std::string& key, const std::string& value);
     long long strlen(const std::string& key);
+    void mset(const std::vector<std::pair<std::string, std::string>>& pairs);
+    std::vector<std::optional<std::string>> mget(const std::vector<std::string>& keys);
     bool exists(const std::string& key);
     int ttl(const std::string& key);
     void flush();

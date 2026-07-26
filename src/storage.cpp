@@ -167,6 +167,21 @@ long long Storage::strlen(const std::string& key) {
     return static_cast<long long>(it->second.first.value.size());
 }
 
+void Storage::mset(const std::vector<std::pair<std::string, std::string>>& pairs) {
+    for (const auto& [key, value] : pairs) {
+        set(key, value);
+    }
+}
+
+std::vector<std::optional<std::string>> Storage::mget(const std::vector<std::string>& keys) {
+    std::vector<std::optional<std::string>> results;
+    results.reserve(keys.size());
+    for (const auto& key : keys) {
+        results.push_back(get(key));
+    }
+    return results;
+}
+
 bool Storage::del(const std::string& key) {
     std::lock_guard<std::mutex> lock(mutex_);
     auto it = data_.find(key);

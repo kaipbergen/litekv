@@ -127,6 +127,19 @@ TEST_CASE("strlen returns value length or zero for missing key", "[storage]") {
     REQUIRE(storage.strlen("greeting") == 5);
 }
 
+TEST_CASE("mset sets multiple keys and mget reads them back", "[storage]") {
+    auto path = temp_aof_path("mset_mget");
+    std::remove(path.c_str());
+    Storage storage(path);
+
+    storage.mset({{"a", "1"}, {"b", "2"}});
+    auto results = storage.mget({"a", "b", "missing"});
+    REQUIRE(results.size() == 3);
+    REQUIRE(results[0].value() == "1");
+    REQUIRE(results[1].value() == "2");
+    REQUIRE_FALSE(results[2].has_value());
+}
+
 TEST_CASE("flush clears all keys", "[storage]") {
     auto path = temp_aof_path("flush");
     std::remove(path.c_str());

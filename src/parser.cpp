@@ -88,6 +88,14 @@ std::string Parser::integer_response(long long value) {
     return ":" + std::to_string(value) + "\r\n";
 }
 
+std::string Parser::array_response(const std::vector<std::optional<std::string>>& values) {
+    std::string out = "*" + std::to_string(values.size()) + "\r\n";
+    for (const auto& value : values) {
+        out += value.has_value() ? bulk_response(value.value()) : null_response();
+    }
+    return out;
+}
+
 std::string Parser::encode_command(const std::vector<std::string>& tokens) {
     std::string out = "*" + std::to_string(tokens.size()) + "\r\n";
     for (const auto& t : tokens) {

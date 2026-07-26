@@ -17,3 +17,13 @@ add_executable(litekv
 )
 
 target_compile_options(litekv PRIVATE -Wall -Wextra)
+
+enable_testing()
+
+add_executable(litekv_tests
+    tests/test_storage.cpp
+    src/storage.cpp
+)
+target_include_directories(litekv_tests PRIVATE tests)
+
+add_test(NAME litekv_tests COMMAND litekv_tests)

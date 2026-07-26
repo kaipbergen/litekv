@@ -11,7 +11,7 @@ Progress is tracked by checking items off below (`- [ ]` → `- [x] (Day N, YYYY
 - [x] Fix replica auto-reconnect with retry + backoff (Day 1, 2026-07-24)
 - [x] Full resync on reconnect (Day 1, 2026-07-24)
 - [x] INCRBY / DECRBY (Day 1, 2026-07-24)
-- [ ] Unit test framework setup (Catch2) + first tests for storage.cpp
+- [x] Unit test framework setup (Catch2) + first tests for storage.cpp (Day 2, 2026-07-26)
 - [ ] APPEND
 - [ ] STRLEN
 - [ ] GitHub Actions CI (build + run tests on every push)

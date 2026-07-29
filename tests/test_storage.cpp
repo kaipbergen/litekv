@@ -140,6 +140,21 @@ TEST_CASE("mset sets multiple keys and mget reads them back", "[storage]") {
     REQUIRE_FALSE(results[2].has_value());
 }
 
+TEST_CASE("getset returns old value and sets new one", "[storage]") {
+    auto path = temp_aof_path("getset");
+    std::remove(path.c_str());
+    Storage storage(path);
+
+    auto v1 = storage.getset("foo", "bar");
+    REQUIRE_FALSE(v1.has_value());
+    REQUIRE(storage.get("foo").value() == "bar");
+
+    auto v2 = storage.getset("foo", "baz");
+    REQUIRE(v2.has_value());
+    REQUIRE(v2.value() == "bar");
+    REQUIRE(storage.get("foo").value() == "baz");
+}
+
 TEST_CASE("flush clears all keys", "[storage]") {
     auto path = temp_aof_path("flush");
     std::remove(path.c_str());

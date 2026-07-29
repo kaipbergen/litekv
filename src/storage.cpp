@@ -83,6 +83,12 @@ std::optional<std::string> Storage::get(const std::string& key) {
     return it->second.first.value;
 }
 
+std::optional<std::string> Storage::getset(const std::string& key, const std::string& value) {
+    auto old_value = get(key);
+    set(key, value);
+    return old_value;
+}
+
 std::optional<long long> Storage::incrby(const std::string& key, long long delta) {
     std::lock_guard<std::mutex> lock(mutex_);
 

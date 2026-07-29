@@ -243,7 +243,7 @@ std::string Server::process_command(std::string_view raw, bool from_master) {
     if (role_ == Role::REPLICA && !from_master) {
         if (cmd.name == "SET" || cmd.name == "DEL" || cmd.name == "FLUSHALL" ||
             cmd.name == "INCR" || cmd.name == "INCRBY" || cmd.name == "DECRBY" ||
-            cmd.name == "APPEND" || cmd.name == "MSET") {
+            cmd.name == "APPEND" || cmd.name == "MSET" || cmd.name == "GETSET") {
             return Parser::error_response("READONLY You can't write against a read only replica");
         }
     }
@@ -330,6 +330,16 @@ std::string Server::process_command(std::string_view raw, bool from_master) {
             propagate_to_replicas(raw_copy);
         }
         return Parser::ok_response();
+    }
+    else if (cmd.name == "GETSET") {
+        if (cmd.args.size() < 2) return Parser::error_response("wrong number of arguments for GETSET");
+        auto old_val = storage_.getset(cmd.args[0], cmd.args[1]);
+        if (role_ == Role::MASTER) {
+            std::string raw_copy(raw);
+            propagate_to_replicas(raw_copy);
+        }
+        if (!old_val.has_value()) return Parser::null_response();
+        return Parser::bulk_response(old_val.value());
     }
     else if (cmd.name == "MGET") {
         if (cmd.args.empty()) return Parser::error_response("wrong number of arguments for MGET");

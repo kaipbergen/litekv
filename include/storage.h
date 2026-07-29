@@ -23,6 +23,7 @@ public:
 
     void set(const std::string& key, const std::string& value, int ttl_seconds = -1);
     std::optional<std::string> get(const std::string& key);
+    std::optional<std::string> getset(const std::string& key, const std::string& value);
     bool del(const std::string& key);
     std::optional<long long> incrby(const std::string& key, long long delta);
     long long append(const std::string& key, const std::string& value);

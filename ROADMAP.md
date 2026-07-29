@@ -16,7 +16,7 @@ Progress is tracked by checking items off below (`- [ ]` → `- [x] (Day N, YYYY
 - [x] STRLEN (Day 2, 2026-07-26)
 - [x] GitHub Actions CI (build + run tests on every push) (Day 2, 2026-07-26)
 - [x] MSET / MGET (Day 2, 2026-07-26)
-- [ ] GETSET
+- [x] GETSET (Day 3, 2026-07-29)
 - [ ] SETNX
 - [ ] RENAME
 - [ ] TYPE

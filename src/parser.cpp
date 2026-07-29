@@ -51,6 +51,7 @@ Command Parser::parse(std::string_view input) {
     while (pos < input.size()) {
         while (pos < input.size() && input[pos] == ' ') pos++;
         if (pos >= input.size()) break;
+        if (input[pos] == '\r' || input[pos] == '\n') break;
 
         size_t end = pos;
         while (end < input.size() && input[end] != ' ' &&

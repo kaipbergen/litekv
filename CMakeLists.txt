@@ -22,7 +22,9 @@ enable_testing()
 
 add_executable(litekv_tests
     tests/test_storage.cpp
+    tests/test_parser.cpp
     src/storage.cpp
+    src/parser.cpp
 )
 target_include_directories(litekv_tests PRIVATE tests)
 

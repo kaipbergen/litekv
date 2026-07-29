@@ -19,7 +19,7 @@ Progress is tracked by checking items off below (`- [ ]` → `- [x] (Day N, YYYY
 - [x] GETSET (Day 3, 2026-07-29)
 - [x] SETNX (Day 3, 2026-07-29)
 - [x] RENAME (Day 3, 2026-07-29)
-- [ ] TYPE
+- [x] TYPE (Day 3, 2026-07-29)
 - [ ] Unit tests for parser.cpp (RESP edge cases)
 
 ## TTL & key introspection

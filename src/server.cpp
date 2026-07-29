@@ -361,6 +361,10 @@ std::string Server::process_command(std::string_view raw, bool from_master) {
         }
         return Parser::ok_response();
     }
+    else if (cmd.name == "TYPE") {
+        if (cmd.args.size() < 1) return Parser::error_response("wrong number of arguments for TYPE");
+        return storage_.exists(cmd.args[0]) ? std::string("+string\r\n") : std::string("+none\r\n");
+    }
     else if (cmd.name == "MGET") {
         if (cmd.args.empty()) return Parser::error_response("wrong number of arguments for MGET");
         return Parser::array_response(storage_.mget(cmd.args));

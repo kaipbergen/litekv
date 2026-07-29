@@ -17,7 +17,7 @@ Progress is tracked by checking items off below (`- [ ]` → `- [x] (Day N, YYYY
 - [x] GitHub Actions CI (build + run tests on every push) (Day 2, 2026-07-26)
 - [x] MSET / MGET (Day 2, 2026-07-26)
 - [x] GETSET (Day 3, 2026-07-29)
-- [ ] SETNX
+- [x] SETNX (Day 3, 2026-07-29)
 - [ ] RENAME
 - [ ] TYPE
 - [ ] Unit tests for parser.cpp (RESP edge cases)

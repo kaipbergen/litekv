@@ -155,6 +155,18 @@ TEST_CASE("getset returns old value and sets new one", "[storage]") {
     REQUIRE(storage.get("foo").value() == "baz");
 }
 
+TEST_CASE("setnx only sets when key is absent", "[storage]") {
+    auto path = temp_aof_path("setnx");
+    std::remove(path.c_str());
+    Storage storage(path);
+
+    REQUIRE(storage.setnx("foo", "bar"));
+    REQUIRE(storage.get("foo").value() == "bar");
+
+    REQUIRE_FALSE(storage.setnx("foo", "baz"));
+    REQUIRE(storage.get("foo").value() == "bar");
+}
+
 TEST_CASE("flush clears all keys", "[storage]") {
     auto path = temp_aof_path("flush");
     std::remove(path.c_str());

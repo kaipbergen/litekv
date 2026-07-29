@@ -89,6 +89,26 @@ std::optional<std::string> Storage::getset(const std::string& key, const std::st
     return old_value;
 }
 
+bool Storage::setnx(const std::string& key, const std::string& value) {
+    std::lock_guard<std::mutex> lock(mutex_);
+
+    auto it = data_.find(key);
+    if (it != data_.end() && is_expired(it->second.first)) {
+        lru_list_.erase(it->second.second);
+        data_.erase(it);
+        it = data_.end();
+    }
+    if (it != data_.end()) return false;
+
+    evict_lru();
+    Entry entry;
+    entry.value = value;
+    append_aof("SET " + key + " " + value);
+    lru_list_.push_front(key);
+    data_[key] = {std::move(entry), lru_list_.begin()};
+    return true;
+}
+
 std::optional<long long> Storage::incrby(const std::string& key, long long delta) {
     std::lock_guard<std::mutex> lock(mutex_);
 

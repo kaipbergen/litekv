@@ -167,6 +167,37 @@ TEST_CASE("setnx only sets when key is absent", "[storage]") {
     REQUIRE(storage.get("foo").value() == "bar");
 }
 
+TEST_CASE("rename moves a value to a new key", "[storage]") {
+    auto path = temp_aof_path("rename");
+    std::remove(path.c_str());
+    Storage storage(path);
+
+    storage.set("foo", "bar");
+    REQUIRE(storage.rename("foo", "baz"));
+    REQUIRE_FALSE(storage.exists("foo"));
+    REQUIRE(storage.get("baz").value() == "bar");
+}
+
+TEST_CASE("rename fails when source key is missing", "[storage]") {
+    auto path = temp_aof_path("rename_missing");
+    std::remove(path.c_str());
+    Storage storage(path);
+
+    REQUIRE_FALSE(storage.rename("nope", "dest"));
+}
+
+TEST_CASE("rename overwrites an existing destination key", "[storage]") {
+    auto path = temp_aof_path("rename_overwrite");
+    std::remove(path.c_str());
+    Storage storage(path);
+
+    storage.set("foo", "bar");
+    storage.set("baz", "old");
+    REQUIRE(storage.rename("foo", "baz"));
+    REQUIRE(storage.get("baz").value() == "bar");
+    REQUIRE_FALSE(storage.exists("foo"));
+}
+
 TEST_CASE("flush clears all keys", "[storage]") {
     auto path = temp_aof_path("flush");
     std::remove(path.c_str());

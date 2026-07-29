@@ -109,6 +109,43 @@ bool Storage::setnx(const std::string& key, const std::string& value) {
     return true;
 }
 
+bool Storage::rename(const std::string& key, const std::string& newkey) {
+    std::lock_guard<std::mutex> lock(mutex_);
+
+    auto it = data_.find(key);
+    if (it != data_.end() && is_expired(it->second.first)) {
+        lru_list_.erase(it->second.second);
+        data_.erase(it);
+        it = data_.end();
+    }
+    if (it == data_.end()) return false;
+
+    Entry entry = it->second.first;
+    lru_list_.erase(it->second.second);
+    data_.erase(it);
+
+    if (key != newkey) {
+        auto newit = data_.find(newkey);
+        if (newit != data_.end()) {
+            lru_list_.erase(newit->second.second);
+            data_.erase(newit);
+        }
+    }
+
+    if (entry.expires_at.has_value()) {
+        auto remaining = std::chrono::duration_cast<std::chrono::seconds>(
+            entry.expires_at.value() - std::chrono::steady_clock::now()).count();
+        append_aof("SET " + newkey + " " + entry.value + " EX " + std::to_string(remaining));
+    } else {
+        append_aof("SET " + newkey + " " + entry.value);
+    }
+    if (key != newkey) append_aof("DEL " + key);
+
+    lru_list_.push_front(newkey);
+    data_[newkey] = {std::move(entry), lru_list_.begin()};
+    return true;
+}
+
 std::optional<long long> Storage::incrby(const std::string& key, long long delta) {
     std::lock_guard<std::mutex> lock(mutex_);
 

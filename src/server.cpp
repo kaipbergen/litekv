@@ -435,6 +435,38 @@ std::string Server::process_command(std::string_view raw, bool from_master) {
         std::vector<std::optional<std::string>> values(matched.begin(), matched.end());
         return Parser::array_response(values);
     }
+    else if (cmd.name == "SCAN") {
+        if (cmd.args.size() < 1) return Parser::error_response("wrong number of arguments for SCAN");
+        size_t cursor;
+        try {
+            size_t pos;
+            cursor = std::stoull(cmd.args[0], &pos);
+            if (pos != cmd.args[0].size()) return Parser::error_response("invalid cursor");
+        } catch (...) {
+            return Parser::error_response("invalid cursor");
+        }
+        std::string pattern = "*";
+        size_t count = 10;
+        for (size_t i = 1; i + 1 < cmd.args.size(); i += 2) {
+            std::string opt = cmd.args[i];
+            std::transform(opt.begin(), opt.end(), opt.begin(), ::toupper);
+            if (opt == "MATCH") {
+                pattern = cmd.args[i + 1];
+            } else if (opt == "COUNT") {
+                try {
+                    count = std::stoull(cmd.args[i + 1]);
+                } catch (...) {
+                    return Parser::error_response("value is not an integer or out of range");
+                }
+            }
+        }
+        auto [next_cursor, matched] = storage_.scan(cursor, pattern, count);
+        std::string out = "*2\r\n";
+        out += Parser::bulk_response(std::to_string(next_cursor));
+        std::vector<std::optional<std::string>> values(matched.begin(), matched.end());
+        out += Parser::array_response(values);
+        return out;
+    }
     else if (cmd.name == "FLUSHALL") {
         storage_.flush();
         if (role_ == Role::MASTER) {

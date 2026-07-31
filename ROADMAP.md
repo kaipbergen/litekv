@@ -26,7 +26,7 @@ Progress is tracked by checking items off below (`- [ ]` → `- [x] (Day N, YYYY
 - [x] EXPIRE / PERSIST (decoupled from SET EX) (Day 4, 2026-07-31)
 - [x] PEXPIRE / PTTL (millisecond precision) (Day 4, 2026-07-31)
 - [x] KEYS (glob pattern matching) (Day 4, 2026-07-31)
-- [ ] SCAN (cursor-based iteration)
+- [x] SCAN (cursor-based iteration) (Day 4, 2026-07-31)
 
 ## Replication hardening
 - [ ] Replication offset tracking (master + replica report offset)

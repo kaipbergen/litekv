@@ -420,6 +420,29 @@ std::vector<std::string> Storage::keys(const std::string& pattern) {
     return result;
 }
 
+std::pair<size_t, std::vector<std::string>> Storage::scan(size_t cursor, const std::string& pattern,
+                                                            size_t count) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    std::vector<std::string> all_keys;
+    all_keys.reserve(data_.size());
+    auto now = std::chrono::steady_clock::now();
+    for (const auto& [key, pair] : data_) {
+        const Entry& entry = pair.first;
+        if (entry.expires_at.has_value() && now > entry.expires_at.value()) continue;
+        all_keys.push_back(key);
+    }
+    std::sort(all_keys.begin(), all_keys.end());
+
+    std::vector<std::string> result;
+    if (count == 0) count = 10;
+    size_t i = cursor;
+    for (; i < all_keys.size() && result.size() < count; i++) {
+        if (glob_match(pattern, all_keys[i])) result.push_back(all_keys[i]);
+    }
+    size_t next_cursor = (i >= all_keys.size()) ? 0 : i;
+    return {next_cursor, result};
+}
+
 void Storage::flush() {
     std::lock_guard<std::mutex> lock(mutex_);
     data_.clear();

@@ -39,6 +39,8 @@ public:
     bool pexpire(const std::string& key, long long ttl_ms);
     long long pttl(const std::string& key);
     std::vector<std::string> keys(const std::string& pattern);
+    std::pair<size_t, std::vector<std::string>> scan(size_t cursor, const std::string& pattern,
+                                                       size_t count);
     void flush();
     void load_aof();
     size_t size() const;

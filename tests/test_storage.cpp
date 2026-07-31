@@ -314,6 +314,54 @@ TEST_CASE("keys excludes expired entries", "[storage]") {
     REQUIRE(all == std::vector<std::string>{"persistent"});
 }
 
+TEST_CASE("scan iterates all keys across multiple calls", "[storage]") {
+    auto path = temp_aof_path("scan");
+    std::remove(path.c_str());
+    Storage storage(path);
+
+    storage.set("a", "1");
+    storage.set("b", "2");
+    storage.set("c", "3");
+    storage.set("d", "4");
+    storage.set("e", "5");
+
+    std::vector<std::string> collected;
+    size_t cursor = 0;
+    do {
+        auto [next, batch] = storage.scan(cursor, "*", 2);
+        collected.insert(collected.end(), batch.begin(), batch.end());
+        cursor = next;
+    } while (cursor != 0);
+
+    std::sort(collected.begin(), collected.end());
+    REQUIRE(collected == std::vector<std::string>{"a", "b", "c", "d", "e"});
+}
+
+TEST_CASE("scan respects match pattern", "[storage]") {
+    auto path = temp_aof_path("scan_match");
+    std::remove(path.c_str());
+    Storage storage(path);
+
+    storage.set("foo", "1");
+    storage.set("foobar", "2");
+    storage.set("bar", "3");
+
+    auto [next, batch] = storage.scan(0, "foo*", 10);
+    REQUIRE(next == 0);
+    std::sort(batch.begin(), batch.end());
+    REQUIRE(batch == std::vector<std::string>{"foo", "foobar"});
+}
+
+TEST_CASE("scan on empty storage returns cursor 0 and no keys", "[storage]") {
+    auto path = temp_aof_path("scan_empty");
+    std::remove(path.c_str());
+    Storage storage(path);
+
+    auto [next, batch] = storage.scan(0, "*", 10);
+    REQUIRE(next == 0);
+    REQUIRE(batch.empty());
+}
+
 TEST_CASE("flush clears all keys", "[storage]") {
     auto path = temp_aof_path("flush");
     std::remove(path.c_str());

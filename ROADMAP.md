@@ -24,7 +24,7 @@ Progress is tracked by checking items off below (`- [ ]` → `- [x] (Day N, YYYY
 
 ## TTL & key introspection
 - [x] EXPIRE / PERSIST (decoupled from SET EX) (Day 4, 2026-07-31)
-- [ ] PEXPIRE / PTTL (millisecond precision)
+- [x] PEXPIRE / PTTL (millisecond precision) (Day 4, 2026-07-31)
 - [ ] KEYS (glob pattern matching)
 - [ ] SCAN (cursor-based iteration)
 

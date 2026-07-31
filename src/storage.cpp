@@ -319,6 +319,44 @@ bool Storage::persist(const std::string& key) {
     return true;
 }
 
+bool Storage::pexpire(const std::string& key, long long ttl_ms) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto it = data_.find(key);
+    if (it == data_.end()) return false;
+    if (is_expired(it->second.first)) {
+        lru_list_.erase(it->second.second);
+        data_.erase(it);
+        return false;
+    }
+    if (ttl_ms <= 0) {
+        lru_list_.erase(it->second.second);
+        data_.erase(it);
+        append_aof("DEL " + key);
+        return true;
+    }
+    it->second.first.expires_at = std::chrono::steady_clock::now() +
+                                   std::chrono::milliseconds(ttl_ms);
+    long long ttl_seconds = (ttl_ms + 999) / 1000;
+    append_aof("SET " + key + " " + it->second.first.value + " EX " + std::to_string(ttl_seconds));
+    return true;
+}
+
+long long Storage::pttl(const std::string& key) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto it = data_.find(key);
+    if (it == data_.end()) return -2;
+    if (is_expired(it->second.first)) {
+        lru_list_.erase(it->second.second);
+        data_.erase(it);
+        return -2;
+    }
+    if (!it->second.first.expires_at.has_value()) return -1;
+    auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(
+        it->second.first.expires_at.value() - std::chrono::steady_clock::now()
+    ).count();
+    return remaining;
+}
+
 void Storage::flush() {
     std::lock_guard<std::mutex> lock(mutex_);
     data_.clear();

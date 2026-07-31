@@ -238,6 +238,41 @@ TEST_CASE("persist removes a key's ttl", "[storage]") {
     REQUIRE(storage.ttl("foo") == -1);
 }
 
+TEST_CASE("pexpire sets a millisecond ttl on an existing key", "[storage]") {
+    auto path = temp_aof_path("pexpire");
+    std::remove(path.c_str());
+    Storage storage(path);
+
+    REQUIRE_FALSE(storage.pexpire("missing", 10000));
+
+    storage.set("foo", "bar");
+    REQUIRE(storage.pttl("foo") == -1);
+    REQUIRE(storage.pexpire("foo", 100000));
+    long long t = storage.pttl("foo");
+    REQUIRE(t > 0);
+    REQUIRE(t <= 100000);
+}
+
+TEST_CASE("pexpire with non-positive ttl deletes the key", "[storage]") {
+    auto path = temp_aof_path("pexpire_delete");
+    std::remove(path.c_str());
+    Storage storage(path);
+
+    storage.set("foo", "bar");
+    REQUIRE(storage.pexpire("foo", 0));
+    REQUIRE_FALSE(storage.exists("foo"));
+}
+
+TEST_CASE("pttl reports -1 for no expiry and -2 for missing key", "[storage]") {
+    auto path = temp_aof_path("pttl");
+    std::remove(path.c_str());
+    Storage storage(path);
+
+    REQUIRE(storage.pttl("missing") == -2);
+    storage.set("persistent", "v");
+    REQUIRE(storage.pttl("persistent") == -1);
+}
+
 TEST_CASE("flush clears all keys", "[storage]") {
     auto path = temp_aof_path("flush");
     std::remove(path.c_str());

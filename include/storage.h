@@ -36,6 +36,8 @@ public:
     int ttl(const std::string& key);
     bool expire(const std::string& key, int ttl_seconds);
     bool persist(const std::string& key);
+    bool pexpire(const std::string& key, long long ttl_ms);
+    long long pttl(const std::string& key);
     void flush();
     void load_aof();
     size_t size() const;

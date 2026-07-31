@@ -245,7 +245,7 @@ std::string Server::process_command(std::string_view raw, bool from_master) {
             cmd.name == "INCR" || cmd.name == "INCRBY" || cmd.name == "DECRBY" ||
             cmd.name == "APPEND" || cmd.name == "MSET" || cmd.name == "GETSET" ||
             cmd.name == "SETNX" || cmd.name == "RENAME" ||
-            cmd.name == "EXPIRE" || cmd.name == "PERSIST") {
+            cmd.name == "EXPIRE" || cmd.name == "PERSIST" || cmd.name == "PEXPIRE") {
             return Parser::error_response("READONLY You can't write against a read only replica");
         }
     }
@@ -407,6 +407,27 @@ std::string Server::process_command(std::string_view raw, bool from_master) {
             propagate_to_replicas(raw_copy);
         }
         return Parser::integer_response(ok ? 1 : 0);
+    }
+    else if (cmd.name == "PEXPIRE") {
+        if (cmd.args.size() < 2) return Parser::error_response("wrong number of arguments for PEXPIRE");
+        long long millis;
+        try {
+            size_t pos;
+            millis = std::stoll(cmd.args[1], &pos);
+            if (pos != cmd.args[1].size()) return Parser::error_response("value is not an integer or out of range");
+        } catch (...) {
+            return Parser::error_response("value is not an integer or out of range");
+        }
+        bool ok = storage_.pexpire(cmd.args[0], millis);
+        if (ok && role_ == Role::MASTER) {
+            std::string raw_copy(raw);
+            propagate_to_replicas(raw_copy);
+        }
+        return Parser::integer_response(ok ? 1 : 0);
+    }
+    else if (cmd.name == "PTTL") {
+        if (cmd.args.size() < 1) return Parser::error_response("wrong number of arguments for PTTL");
+        return Parser::integer_response(storage_.pttl(cmd.args[0]));
     }
     else if (cmd.name == "FLUSHALL") {
         storage_.flush();

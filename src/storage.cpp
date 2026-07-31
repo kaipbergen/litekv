@@ -283,6 +283,42 @@ int Storage::ttl(const std::string& key) {
     return static_cast<int>(remaining);
 }
 
+bool Storage::expire(const std::string& key, int ttl_seconds) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto it = data_.find(key);
+    if (it == data_.end()) return false;
+    if (is_expired(it->second.first)) {
+        lru_list_.erase(it->second.second);
+        data_.erase(it);
+        return false;
+    }
+    if (ttl_seconds <= 0) {
+        lru_list_.erase(it->second.second);
+        data_.erase(it);
+        append_aof("DEL " + key);
+        return true;
+    }
+    it->second.first.expires_at = std::chrono::steady_clock::now() +
+                                   std::chrono::seconds(ttl_seconds);
+    append_aof("SET " + key + " " + it->second.first.value + " EX " + std::to_string(ttl_seconds));
+    return true;
+}
+
+bool Storage::persist(const std::string& key) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto it = data_.find(key);
+    if (it == data_.end()) return false;
+    if (is_expired(it->second.first)) {
+        lru_list_.erase(it->second.second);
+        data_.erase(it);
+        return false;
+    }
+    if (!it->second.first.expires_at.has_value()) return false;
+    it->second.first.expires_at.reset();
+    append_aof("SET " + key + " " + it->second.first.value);
+    return true;
+}
+
 void Storage::flush() {
     std::lock_guard<std::mutex> lock(mutex_);
     data_.clear();

@@ -244,7 +244,8 @@ std::string Server::process_command(std::string_view raw, bool from_master) {
         if (cmd.name == "SET" || cmd.name == "DEL" || cmd.name == "FLUSHALL" ||
             cmd.name == "INCR" || cmd.name == "INCRBY" || cmd.name == "DECRBY" ||
             cmd.name == "APPEND" || cmd.name == "MSET" || cmd.name == "GETSET" ||
-            cmd.name == "SETNX" || cmd.name == "RENAME") {
+            cmd.name == "SETNX" || cmd.name == "RENAME" ||
+            cmd.name == "EXPIRE" || cmd.name == "PERSIST") {
             return Parser::error_response("READONLY You can't write against a read only replica");
         }
     }
@@ -380,6 +381,32 @@ std::string Server::process_command(std::string_view raw, bool from_master) {
     else if (cmd.name == "TTL") {
         if (cmd.args.size() < 1) return Parser::error_response("wrong number of arguments for TTL");
         return Parser::integer_response(storage_.ttl(cmd.args[0]));
+    }
+    else if (cmd.name == "EXPIRE") {
+        if (cmd.args.size() < 2) return Parser::error_response("wrong number of arguments for EXPIRE");
+        int seconds;
+        try {
+            size_t pos;
+            seconds = std::stoi(cmd.args[1], &pos);
+            if (pos != cmd.args[1].size()) return Parser::error_response("value is not an integer or out of range");
+        } catch (...) {
+            return Parser::error_response("value is not an integer or out of range");
+        }
+        bool ok = storage_.expire(cmd.args[0], seconds);
+        if (ok && role_ == Role::MASTER) {
+            std::string raw_copy(raw);
+            propagate_to_replicas(raw_copy);
+        }
+        return Parser::integer_response(ok ? 1 : 0);
+    }
+    else if (cmd.name == "PERSIST") {
+        if (cmd.args.size() < 1) return Parser::error_response("wrong number of arguments for PERSIST");
+        bool ok = storage_.persist(cmd.args[0]);
+        if (ok && role_ == Role::MASTER) {
+            std::string raw_copy(raw);
+            propagate_to_replicas(raw_copy);
+        }
+        return Parser::integer_response(ok ? 1 : 0);
     }
     else if (cmd.name == "FLUSHALL") {
         storage_.flush();

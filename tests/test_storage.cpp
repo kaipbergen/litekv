@@ -198,6 +198,46 @@ TEST_CASE("rename overwrites an existing destination key", "[storage]") {
     REQUIRE_FALSE(storage.exists("foo"));
 }
 
+TEST_CASE("expire sets a ttl on an existing key", "[storage]") {
+    auto path = temp_aof_path("expire");
+    std::remove(path.c_str());
+    Storage storage(path);
+
+    REQUIRE_FALSE(storage.expire("missing", 10));
+
+    storage.set("foo", "bar");
+    REQUIRE(storage.ttl("foo") == -1);
+    REQUIRE(storage.expire("foo", 100));
+    int t = storage.ttl("foo");
+    REQUIRE(t > 0);
+    REQUIRE(t <= 100);
+}
+
+TEST_CASE("expire with non-positive ttl deletes the key", "[storage]") {
+    auto path = temp_aof_path("expire_delete");
+    std::remove(path.c_str());
+    Storage storage(path);
+
+    storage.set("foo", "bar");
+    REQUIRE(storage.expire("foo", 0));
+    REQUIRE_FALSE(storage.exists("foo"));
+}
+
+TEST_CASE("persist removes a key's ttl", "[storage]") {
+    auto path = temp_aof_path("persist");
+    std::remove(path.c_str());
+    Storage storage(path);
+
+    REQUIRE_FALSE(storage.persist("missing"));
+
+    storage.set("foo", "bar");
+    REQUIRE_FALSE(storage.persist("foo"));
+
+    storage.set("foo", "bar", 100);
+    REQUIRE(storage.persist("foo"));
+    REQUIRE(storage.ttl("foo") == -1);
+}
+
 TEST_CASE("flush clears all keys", "[storage]") {
     auto path = temp_aof_path("flush");
     std::remove(path.c_str());

@@ -23,7 +23,7 @@ Progress is tracked by checking items off below (`- [ ]` → `- [x] (Day N, YYYY
 - [x] Unit tests for parser.cpp (RESP edge cases) (Day 3, 2026-07-29)
 
 ## TTL & key introspection
-- [ ] EXPIRE / PERSIST (decoupled from SET EX)
+- [x] EXPIRE / PERSIST (decoupled from SET EX) (Day 4, 2026-07-31)
 - [ ] PEXPIRE / PTTL (millisecond precision)
 - [ ] KEYS (glob pattern matching)
 - [ ] SCAN (cursor-based iteration)

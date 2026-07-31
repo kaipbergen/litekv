@@ -34,6 +34,8 @@ public:
     std::vector<std::optional<std::string>> mget(const std::vector<std::string>& keys);
     bool exists(const std::string& key);
     int ttl(const std::string& key);
+    bool expire(const std::string& key, int ttl_seconds);
+    bool persist(const std::string& key);
     void flush();
     void load_aof();
     size_t size() const;

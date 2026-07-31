@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <thread>
 #include <chrono>
+#include <algorithm>
 
 using namespace litekv;
 
@@ -271,6 +272,46 @@ TEST_CASE("pttl reports -1 for no expiry and -2 for missing key", "[storage]") {
     REQUIRE(storage.pttl("missing") == -2);
     storage.set("persistent", "v");
     REQUIRE(storage.pttl("persistent") == -1);
+}
+
+TEST_CASE("keys matches glob patterns", "[storage]") {
+    auto path = temp_aof_path("keys");
+    std::remove(path.c_str());
+    Storage storage(path);
+
+    storage.set("foo", "1");
+    storage.set("foobar", "2");
+    storage.set("bar", "3");
+
+    auto all = storage.keys("*");
+    std::sort(all.begin(), all.end());
+    REQUIRE(all == std::vector<std::string>{"bar", "foo", "foobar"});
+
+    auto foo_star = storage.keys("foo*");
+    std::sort(foo_star.begin(), foo_star.end());
+    REQUIRE(foo_star == std::vector<std::string>{"foo", "foobar"});
+
+    auto exact = storage.keys("bar");
+    REQUIRE(exact == std::vector<std::string>{"bar"});
+
+    auto q = storage.keys("fo?");
+    REQUIRE(q == std::vector<std::string>{"foo"});
+
+    auto none = storage.keys("nomatch*");
+    REQUIRE(none.empty());
+}
+
+TEST_CASE("keys excludes expired entries", "[storage]") {
+    auto path = temp_aof_path("keys_expired");
+    std::remove(path.c_str());
+    Storage storage(path);
+
+    storage.set("persistent", "v");
+    storage.set("ephemeral", "v", 1);
+    std::this_thread::sleep_for(std::chrono::milliseconds(1100));
+
+    auto all = storage.keys("*");
+    REQUIRE(all == std::vector<std::string>{"persistent"});
 }
 
 TEST_CASE("flush clears all keys", "[storage]") {

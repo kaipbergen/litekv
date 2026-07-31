@@ -3,6 +3,7 @@
 #include <fstream>
 #include <sstream>
 #include <iostream>
+#include <algorithm>
 
 namespace litekv {
 
@@ -355,6 +356,68 @@ long long Storage::pttl(const std::string& key) {
         it->second.first.expires_at.value() - std::chrono::steady_clock::now()
     ).count();
     return remaining;
+}
+
+bool Storage::glob_match(const std::string& pattern, const std::string& str) {
+    size_t p = 0, s = 0;
+    size_t star_p = std::string::npos, star_s = 0;
+    size_t plen = pattern.size(), slen = str.size();
+
+    while (s < slen) {
+        if (p < plen && pattern[p] == '\\' && p + 1 < plen) {
+            if (str[s] == pattern[p + 1]) { p += 2; s++; continue; }
+        } else if (p < plen && pattern[p] == '[') {
+            size_t close = p + 1;
+            bool negate = close < plen && (pattern[close] == '^');
+            if (negate) close++;
+            size_t class_start = close;
+            bool matched = false;
+            bool first = true;
+            while (close < plen && (pattern[close] != ']' || first)) {
+                first = false;
+                if (pattern[close] == '-' && close + 1 < plen && pattern[close + 1] != ']' &&
+                    close > class_start) {
+                    char lo = pattern[close - 1];
+                    char hi = pattern[close + 1];
+                    if (str[s] >= std::min(lo, hi) && str[s] <= std::max(lo, hi)) matched = true;
+                    close += 2;
+                } else {
+                    if (pattern[close] == str[s]) matched = true;
+                    close++;
+                }
+            }
+            if (close < plen) close++; // consume ']'
+            if (matched != negate) { p = close; s++; continue; }
+        } else if (p < plen && pattern[p] == '?') {
+            p++; s++; continue;
+        } else if (p < plen && pattern[p] == '*') {
+            star_p = p; star_s = s; p++; continue;
+        } else if (p < plen && pattern[p] == str[s]) {
+            p++; s++; continue;
+        }
+
+        if (star_p != std::string::npos) {
+            p = star_p + 1;
+            star_s++;
+            s = star_s;
+        } else {
+            return false;
+        }
+    }
+    while (p < plen && pattern[p] == '*') p++;
+    return p == plen;
+}
+
+std::vector<std::string> Storage::keys(const std::string& pattern) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    std::vector<std::string> result;
+    auto now = std::chrono::steady_clock::now();
+    for (const auto& [key, pair] : data_) {
+        const Entry& entry = pair.first;
+        if (entry.expires_at.has_value() && now > entry.expires_at.value()) continue;
+        if (glob_match(pattern, key)) result.push_back(key);
+    }
+    return result;
 }
 
 void Storage::flush() {

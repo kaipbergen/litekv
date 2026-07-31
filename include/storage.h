@@ -38,6 +38,7 @@ public:
     bool persist(const std::string& key);
     bool pexpire(const std::string& key, long long ttl_ms);
     long long pttl(const std::string& key);
+    std::vector<std::string> keys(const std::string& pattern);
     void flush();
     void load_aof();
     size_t size() const;
@@ -59,6 +60,7 @@ private:
     void append_aof(const std::string& line);
     void evict_lru();
     void touch(const std::string& key);
+    static bool glob_match(const std::string& pattern, const std::string& str);
 };
 
 } // namespace litekv

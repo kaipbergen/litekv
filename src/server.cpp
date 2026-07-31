@@ -429,6 +429,12 @@ std::string Server::process_command(std::string_view raw, bool from_master) {
         if (cmd.args.size() < 1) return Parser::error_response("wrong number of arguments for PTTL");
         return Parser::integer_response(storage_.pttl(cmd.args[0]));
     }
+    else if (cmd.name == "KEYS") {
+        if (cmd.args.size() < 1) return Parser::error_response("wrong number of arguments for KEYS");
+        auto matched = storage_.keys(cmd.args[0]);
+        std::vector<std::optional<std::string>> values(matched.begin(), matched.end());
+        return Parser::array_response(values);
+    }
     else if (cmd.name == "FLUSHALL") {
         storage_.flush();
         if (role_ == Role::MASTER) {

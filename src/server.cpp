@@ -222,6 +222,7 @@ void Server::handle_client(int client_fd) {
 }
 
 void Server::propagate_to_replicas(const std::string& cmd) {
+    repl_offset_ += static_cast<long long>(cmd.size());
     std::lock_guard<std::mutex> lock(replicas_mutex_);
     for (int fd : replicas_) {
         send(fd, cmd.c_str(), cmd.size(), 0);
@@ -477,8 +478,10 @@ std::string Server::process_command(std::string_view raw, bool from_master) {
     }
     else if (cmd.name == "INFO") {
         std::string role_str = (role_ == Role::MASTER) ? "master" : "slave";
+        std::string offset_field = (role_ == Role::MASTER) ? "master_repl_offset" : "slave_repl_offset";
         return Parser::bulk_response("role:" + role_str + "\r\nkeys:" +
-                                     std::to_string(storage_.size()));
+                                     std::to_string(storage_.size()) + "\r\n" +
+                                     offset_field + ":" + std::to_string(repl_offset_.load()));
     }
     else if (cmd.name == "DBSIZE") {
         return Parser::integer_response(static_cast<int>(storage_.size()));
@@ -591,12 +594,14 @@ void Server::replica_loop(int master_fd) {
                 std::string msg = buffer.substr(0, pos);
                 buffer.erase(0, pos);
                 process_command(msg, true);
+                repl_offset_ += static_cast<long long>(msg.size());
             } else {
                 size_t end = buffer.find("\r\n");
                 if (end == std::string::npos) break;
                 std::string msg = buffer.substr(0, end + 2);
                 buffer.erase(0, end + 2);
                 process_command(msg, true);
+                repl_offset_ += static_cast<long long>(msg.size());
             }
         }
     }

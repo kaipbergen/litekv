@@ -29,7 +29,7 @@ Progress is tracked by checking items off below (`- [ ]` → `- [x] (Day N, YYYY
 - [x] SCAN (cursor-based iteration) (Day 4, 2026-07-31)
 
 ## Replication hardening
-- [ ] Replication offset tracking (master + replica report offset)
+- [x] Replication offset tracking (master + replica report offset) (Day 4, 2026-07-31)
 - [ ] WAIT (block until N replicas ack)
 
 ## Hashes

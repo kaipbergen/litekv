@@ -32,6 +32,7 @@ private:
 
     std::vector<int> replicas_;
     std::mutex replicas_mutex_;
+    std::atomic<long long> repl_offset_{0};
 
     void accept_loop();
     void handle_client(int client_fd);

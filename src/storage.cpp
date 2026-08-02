@@ -494,6 +494,20 @@ std::vector<std::pair<std::string, std::string>> Storage::hgetall(const std::str
     return result;
 }
 
+bool Storage::hexists(const std::string& key, const std::string& field) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto it = hashes_.find(key);
+    if (it == hashes_.end()) return false;
+    return it->second.find(field) != it->second.end();
+}
+
+long long Storage::hlen(const std::string& key) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto it = hashes_.find(key);
+    if (it == hashes_.end()) return 0;
+    return static_cast<long long>(it->second.size());
+}
+
 void Storage::flush() {
     std::lock_guard<std::mutex> lock(mutex_);
     data_.clear();

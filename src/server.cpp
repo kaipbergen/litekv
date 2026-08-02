@@ -392,6 +392,7 @@ std::string Server::process_command(std::string_view raw, bool from_master) {
     }
     else if (cmd.name == "TYPE") {
         if (cmd.args.size() < 1) return Parser::error_response("wrong number of arguments for TYPE");
+        if (storage_.hlen(cmd.args[0]) > 0) return std::string("+hash\r\n");
         return storage_.exists(cmd.args[0]) ? std::string("+string\r\n") : std::string("+none\r\n");
     }
     else if (cmd.name == "MGET") {
@@ -441,6 +442,14 @@ std::string Server::process_command(std::string_view raw, bool from_master) {
             flat.push_back(value);
         }
         return Parser::array_response(flat);
+    }
+    else if (cmd.name == "HEXISTS") {
+        if (cmd.args.size() < 2) return Parser::error_response("wrong number of arguments for HEXISTS");
+        return Parser::integer_response(storage_.hexists(cmd.args[0], cmd.args[1]) ? 1 : 0);
+    }
+    else if (cmd.name == "HLEN") {
+        if (cmd.args.size() < 1) return Parser::error_response("wrong number of arguments for HLEN");
+        return Parser::integer_response(storage_.hlen(cmd.args[0]));
     }
     else if (cmd.name == "EXISTS") {
         if (cmd.args.size() < 1) return Parser::error_response("wrong number of arguments for EXISTS");

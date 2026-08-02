@@ -45,6 +45,8 @@ public:
     std::optional<std::string> hget(const std::string& key, const std::string& field);
     long long hdel(const std::string& key, const std::vector<std::string>& fields);
     std::vector<std::pair<std::string, std::string>> hgetall(const std::string& key);
+    bool hexists(const std::string& key, const std::string& field);
+    long long hlen(const std::string& key);
     void flush();
     void load_aof();
     size_t size() const;

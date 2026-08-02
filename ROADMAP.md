@@ -35,7 +35,7 @@ Progress is tracked by checking items off below (`- [ ]` → `- [x] (Day N, YYYY
 ## Hashes
 - [x] HSET / HGET (Day 5, 2026-08-02)
 - [x] HDEL / HGETALL (Day 5, 2026-08-02)
-- [ ] HEXISTS / HLEN
+- [x] HEXISTS / HLEN (Day 5, 2026-08-02)
 - [ ] HKEYS / HVALS
 - [ ] Integration test script for replication (bash/python, master SET → replica GET)
 

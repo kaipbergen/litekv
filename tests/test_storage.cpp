@@ -435,6 +435,30 @@ TEST_CASE("hgetall returns all field-value pairs", "[storage]") {
     REQUIRE(pairs[1] == std::make_pair(std::string("name"), std::string("alice")));
 }
 
+TEST_CASE("hexists reports field presence", "[storage]") {
+    auto path = temp_aof_path("hexists");
+    std::remove(path.c_str());
+    Storage storage(path);
+
+    REQUIRE_FALSE(storage.hexists("user", "name"));
+    storage.hset("user", "name", "alice");
+    REQUIRE(storage.hexists("user", "name"));
+    REQUIRE_FALSE(storage.hexists("user", "age"));
+}
+
+TEST_CASE("hlen reports the number of fields", "[storage]") {
+    auto path = temp_aof_path("hlen");
+    std::remove(path.c_str());
+    Storage storage(path);
+
+    REQUIRE(storage.hlen("user") == 0);
+    storage.hset("user", "name", "alice");
+    storage.hset("user", "age", "30");
+    REQUIRE(storage.hlen("user") == 2);
+    storage.hdel("user", {"name"});
+    REQUIRE(storage.hlen("user") == 1);
+}
+
 TEST_CASE("flush clears all keys", "[storage]") {
     auto path = temp_aof_path("flush");
     std::remove(path.c_str());

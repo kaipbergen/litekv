@@ -43,6 +43,8 @@ public:
                                                        size_t count);
     bool hset(const std::string& key, const std::string& field, const std::string& value);
     std::optional<std::string> hget(const std::string& key, const std::string& field);
+    long long hdel(const std::string& key, const std::vector<std::string>& fields);
+    std::vector<std::pair<std::string, std::string>> hgetall(const std::string& key);
     void flush();
     void load_aof();
     size_t size() const;

@@ -467,6 +467,33 @@ std::optional<std::string> Storage::hget(const std::string& key, const std::stri
     return fit->second;
 }
 
+long long Storage::hdel(const std::string& key, const std::vector<std::string>& fields) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto it = hashes_.find(key);
+    if (it == hashes_.end()) return 0;
+    long long removed = 0;
+    for (const auto& field : fields) {
+        if (it->second.erase(field) > 0) {
+            removed++;
+            append_aof("HDEL " + key + " " + field);
+        }
+    }
+    if (it->second.empty()) hashes_.erase(it);
+    return removed;
+}
+
+std::vector<std::pair<std::string, std::string>> Storage::hgetall(const std::string& key) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    std::vector<std::pair<std::string, std::string>> result;
+    auto it = hashes_.find(key);
+    if (it == hashes_.end()) return result;
+    result.reserve(it->second.size());
+    for (const auto& [field, value] : it->second) {
+        result.emplace_back(field, value);
+    }
+    return result;
+}
+
 void Storage::flush() {
     std::lock_guard<std::mutex> lock(mutex_);
     data_.clear();
@@ -546,6 +573,14 @@ void Storage::load_aof() {
             ss >> key >> field >> value;
             hashes_[key][field] = value;
             loaded++;
+        } else if (cmd == "HDEL") {
+            std::string key, field;
+            ss >> key >> field;
+            auto it = hashes_.find(key);
+            if (it != hashes_.end()) {
+                it->second.erase(field);
+                if (it->second.empty()) hashes_.erase(it);
+            }
         } else if (cmd == "FLUSHALL") {
             data_.clear();
             lru_list_.clear();

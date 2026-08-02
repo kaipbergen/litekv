@@ -395,6 +395,46 @@ TEST_CASE("del removes a hash key", "[storage]") {
     REQUIRE_FALSE(storage.hget("user", "name").has_value());
 }
 
+TEST_CASE("hdel removes fields and reports the removed count", "[storage]") {
+    auto path = temp_aof_path("hdel");
+    std::remove(path.c_str());
+    Storage storage(path);
+
+    storage.hset("user", "name", "alice");
+    storage.hset("user", "age", "30");
+
+    REQUIRE(storage.hdel("user", {"name", "missing"}) == 1);
+    REQUIRE_FALSE(storage.hget("user", "name").has_value());
+    REQUIRE(storage.hget("user", "age").value() == "30");
+}
+
+TEST_CASE("hdel removes the key entirely once all fields are gone", "[storage]") {
+    auto path = temp_aof_path("hdel_empty");
+    std::remove(path.c_str());
+    Storage storage(path);
+
+    storage.hset("user", "name", "alice");
+    REQUIRE(storage.hdel("user", {"name"}) == 1);
+    REQUIRE_FALSE(storage.exists("user"));
+    REQUIRE(storage.hdel("user", {"name"}) == 0);
+}
+
+TEST_CASE("hgetall returns all field-value pairs", "[storage]") {
+    auto path = temp_aof_path("hgetall");
+    std::remove(path.c_str());
+    Storage storage(path);
+
+    REQUIRE(storage.hgetall("missing").empty());
+
+    storage.hset("user", "name", "alice");
+    storage.hset("user", "age", "30");
+    auto pairs = storage.hgetall("user");
+    std::sort(pairs.begin(), pairs.end());
+    REQUIRE(pairs.size() == 2);
+    REQUIRE(pairs[0] == std::make_pair(std::string("age"), std::string("30")));
+    REQUIRE(pairs[1] == std::make_pair(std::string("name"), std::string("alice")));
+}
+
 TEST_CASE("flush clears all keys", "[storage]") {
     auto path = temp_aof_path("flush");
     std::remove(path.c_str());

@@ -33,7 +33,7 @@ Progress is tracked by checking items off below (`- [ ]` → `- [x] (Day N, YYYY
 - [x] WAIT (block until N replicas ack) (Day 5, 2026-08-02)
 
 ## Hashes
-- [ ] HSET / HGET
+- [x] HSET / HGET (Day 5, 2026-08-02)
 - [ ] HDEL / HGETALL
 - [ ] HEXISTS / HLEN
 - [ ] HKEYS / HVALS

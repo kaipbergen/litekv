@@ -272,7 +272,8 @@ std::string Server::process_command(std::string_view raw, bool from_master) {
             cmd.name == "INCR" || cmd.name == "INCRBY" || cmd.name == "DECRBY" ||
             cmd.name == "APPEND" || cmd.name == "MSET" || cmd.name == "GETSET" ||
             cmd.name == "SETNX" || cmd.name == "RENAME" ||
-            cmd.name == "EXPIRE" || cmd.name == "PERSIST" || cmd.name == "PEXPIRE") {
+            cmd.name == "EXPIRE" || cmd.name == "PERSIST" || cmd.name == "PEXPIRE" ||
+            cmd.name == "HSET") {
             return Parser::error_response("READONLY You can't write against a read only replica");
         }
     }
@@ -400,6 +401,25 @@ std::string Server::process_command(std::string_view raw, bool from_master) {
     else if (cmd.name == "STRLEN") {
         if (cmd.args.size() < 1) return Parser::error_response("wrong number of arguments for STRLEN");
         return Parser::integer_response(storage_.strlen(cmd.args[0]));
+    }
+    else if (cmd.name == "HSET") {
+        if (cmd.args.size() < 3 || (cmd.args.size() - 1) % 2 != 0)
+            return Parser::error_response("wrong number of arguments for HSET");
+        long long added = 0;
+        for (size_t i = 1; i + 1 < cmd.args.size(); i += 2) {
+            if (storage_.hset(cmd.args[0], cmd.args[i], cmd.args[i + 1])) added++;
+        }
+        if (role_ == Role::MASTER) {
+            std::string raw_copy(raw);
+            propagate_to_replicas(raw_copy);
+        }
+        return Parser::integer_response(added);
+    }
+    else if (cmd.name == "HGET") {
+        if (cmd.args.size() < 2) return Parser::error_response("wrong number of arguments for HGET");
+        auto val = storage_.hget(cmd.args[0], cmd.args[1]);
+        if (!val.has_value()) return Parser::null_response();
+        return Parser::bulk_response(val.value());
     }
     else if (cmd.name == "EXISTS") {
         if (cmd.args.size() < 1) return Parser::error_response("wrong number of arguments for EXISTS");

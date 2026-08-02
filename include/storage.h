@@ -41,6 +41,8 @@ public:
     std::vector<std::string> keys(const std::string& pattern);
     std::pair<size_t, std::vector<std::string>> scan(size_t cursor, const std::string& pattern,
                                                        size_t count);
+    bool hset(const std::string& key, const std::string& field, const std::string& value);
+    std::optional<std::string> hget(const std::string& key, const std::string& field);
     void flush();
     void load_aof();
     size_t size() const;
@@ -52,6 +54,7 @@ private:
     // map: key → {entry, iterator to lru_list_}
     std::unordered_map<std::string,
         std::pair<Entry, std::list<std::string>::iterator>> data_;
+    std::unordered_map<std::string, std::unordered_map<std::string, std::string>> hashes_;
 
     std::mutex mutex_;
     std::string aof_path_;

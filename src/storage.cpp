@@ -248,24 +248,30 @@ std::vector<std::optional<std::string>> Storage::mget(const std::vector<std::str
 
 bool Storage::del(const std::string& key) {
     std::lock_guard<std::mutex> lock(mutex_);
+    bool deleted = false;
     auto it = data_.find(key);
-    if (it == data_.end()) return false;
-    lru_list_.erase(it->second.second);
-    data_.erase(it);
-    append_aof("DEL " + key);
-    return true;
+    if (it != data_.end()) {
+        lru_list_.erase(it->second.second);
+        data_.erase(it);
+        deleted = true;
+    }
+    if (hashes_.erase(key) > 0) deleted = true;
+    if (deleted) append_aof("DEL " + key);
+    return deleted;
 }
 
 bool Storage::exists(const std::string& key) {
     std::lock_guard<std::mutex> lock(mutex_);
     auto it = data_.find(key);
-    if (it == data_.end()) return false;
-    if (is_expired(it->second.first)) {
-        lru_list_.erase(it->second.second);
-        data_.erase(it);
-        return false;
+    if (it != data_.end()) {
+        if (is_expired(it->second.first)) {
+            lru_list_.erase(it->second.second);
+            data_.erase(it);
+        } else {
+            return true;
+        }
     }
-    return true;
+    return hashes_.find(key) != hashes_.end();
 }
 
 int Storage::ttl(const std::string& key) {
@@ -443,10 +449,29 @@ std::pair<size_t, std::vector<std::string>> Storage::scan(size_t cursor, const s
     return {next_cursor, result};
 }
 
+bool Storage::hset(const std::string& key, const std::string& field, const std::string& value) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto& fields = hashes_[key];
+    bool is_new = fields.find(field) == fields.end();
+    fields[field] = value;
+    append_aof("HSET " + key + " " + field + " " + value);
+    return is_new;
+}
+
+std::optional<std::string> Storage::hget(const std::string& key, const std::string& field) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto it = hashes_.find(key);
+    if (it == hashes_.end()) return std::nullopt;
+    auto fit = it->second.find(field);
+    if (fit == it->second.end()) return std::nullopt;
+    return fit->second;
+}
+
 void Storage::flush() {
     std::lock_guard<std::mutex> lock(mutex_);
     data_.clear();
     lru_list_.clear();
+    hashes_.clear();
     append_aof("FLUSHALL");
 }
 
@@ -472,6 +497,11 @@ std::vector<std::vector<std::string>> Storage::dump_commands() {
             }
         }
         commands.push_back(std::move(cmd));
+    }
+    for (const auto& [key, fields] : hashes_) {
+        for (const auto& [field, value] : fields) {
+            commands.push_back({"HSET", key, field, value});
+        }
     }
     return commands;
 }
@@ -510,9 +540,16 @@ void Storage::load_aof() {
                 lru_list_.erase(it->second.second);
                 data_.erase(it);
             }
+            hashes_.erase(key);
+        } else if (cmd == "HSET") {
+            std::string key, field, value;
+            ss >> key >> field >> value;
+            hashes_[key][field] = value;
+            loaded++;
         } else if (cmd == "FLUSHALL") {
             data_.clear();
             lru_list_.clear();
+            hashes_.clear();
         }
     }
     std::cout << "AOF: loaded " << loaded << " entries" << std::endl;

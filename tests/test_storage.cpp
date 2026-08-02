@@ -362,6 +362,39 @@ TEST_CASE("scan on empty storage returns cursor 0 and no keys", "[storage]") {
     REQUIRE(batch.empty());
 }
 
+TEST_CASE("hset creates a field and hget reads it back", "[storage]") {
+    auto path = temp_aof_path("hset_hget");
+    std::remove(path.c_str());
+    Storage storage(path);
+
+    REQUIRE(storage.hset("user", "name", "alice"));
+    REQUIRE(storage.hget("user", "name").value() == "alice");
+    REQUIRE_FALSE(storage.hget("user", "missing").has_value());
+    REQUIRE_FALSE(storage.hget("nokey", "name").has_value());
+}
+
+TEST_CASE("hset returns false when updating an existing field", "[storage]") {
+    auto path = temp_aof_path("hset_update");
+    std::remove(path.c_str());
+    Storage storage(path);
+
+    REQUIRE(storage.hset("user", "name", "alice"));
+    REQUIRE_FALSE(storage.hset("user", "name", "bob"));
+    REQUIRE(storage.hget("user", "name").value() == "bob");
+}
+
+TEST_CASE("del removes a hash key", "[storage]") {
+    auto path = temp_aof_path("del_hash");
+    std::remove(path.c_str());
+    Storage storage(path);
+
+    storage.hset("user", "name", "alice");
+    REQUIRE(storage.exists("user"));
+    REQUIRE(storage.del("user"));
+    REQUIRE_FALSE(storage.exists("user"));
+    REQUIRE_FALSE(storage.hget("user", "name").has_value());
+}
+
 TEST_CASE("flush clears all keys", "[storage]") {
     auto path = temp_aof_path("flush");
     std::remove(path.c_str());

@@ -30,7 +30,7 @@ Progress is tracked by checking items off below (`- [ ]` → `- [x] (Day N, YYYY
 
 ## Replication hardening
 - [x] Replication offset tracking (master + replica report offset) (Day 4, 2026-07-31)
-- [ ] WAIT (block until N replicas ack)
+- [x] WAIT (block until N replicas ack) (Day 5, 2026-08-02)
 
 ## Hashes
 - [ ] HSET / HGET

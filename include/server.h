@@ -6,6 +6,7 @@
 #include <atomic>
 #include <vector>
 #include <mutex>
+#include <unordered_map>
 namespace litekv {
 
 enum class Role { MASTER, REPLICA };
@@ -33,6 +34,7 @@ private:
     std::vector<int> replicas_;
     std::mutex replicas_mutex_;
     std::atomic<long long> repl_offset_{0};
+    std::unordered_map<int, long long> replica_acks_;
 
     void accept_loop();
     void handle_client(int client_fd);

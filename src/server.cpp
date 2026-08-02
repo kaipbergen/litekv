@@ -122,6 +122,7 @@ void Server::epoll_loop() {
                     std::lock_guard<std::mutex> lock(replicas_mutex_);
                     auto it = std::find(replicas_.begin(), replicas_.end(), fd);
                     if (it != replicas_.end()) replicas_.erase(it);
+                    replica_acks_.erase(fd);
                     continue;
                 }
 
@@ -131,6 +132,18 @@ void Server::epoll_loop() {
 
                 while (!cbuf.empty()) {
                     if (cbuf.find("REPLCONF") != std::string::npos) {
+                        Command replconf = Parser::parse(cbuf);
+                        cbuf.clear();
+                        if (!replconf.args.empty() && replconf.args[0] == "ACK") {
+                            if (replconf.args.size() >= 2) {
+                                try {
+                                    long long off = std::stoll(replconf.args[1]);
+                                    std::lock_guard<std::mutex> lock(replicas_mutex_);
+                                    replica_acks_[fd] = off;
+                                } catch (...) {}
+                            }
+                            break;
+                        }
                         std::lock_guard<std::mutex> lock(replicas_mutex_);
                         if (std::find(replicas_.begin(), replicas_.end(), fd) == replicas_.end()) {
                             replicas_.push_back(fd);
@@ -138,7 +151,6 @@ void Server::epoll_loop() {
                         std::string resp = "+OK\r\n";
                         send(fd, resp.c_str(), resp.size(), 0);
                         send_full_resync(fd);
-                        cbuf.clear();
                         break;
                     }
 
@@ -201,14 +213,28 @@ void Server::handle_client(int client_fd) {
             std::lock_guard<std::mutex> lock(replicas_mutex_);
             auto it = std::find(replicas_.begin(), replicas_.end(), client_fd);
             if (it != replicas_.end()) replicas_.erase(it);
+            replica_acks_.erase(client_fd);
             break;
         }
 
         std::string_view raw(buffer, bytes);
 
         if (raw.find("REPLCONF") != std::string_view::npos) {
+            Command replconf = Parser::parse(raw);
+            if (!replconf.args.empty() && replconf.args[0] == "ACK") {
+                if (replconf.args.size() >= 2) {
+                    try {
+                        long long off = std::stoll(replconf.args[1]);
+                        std::lock_guard<std::mutex> lock(replicas_mutex_);
+                        replica_acks_[client_fd] = off;
+                    } catch (...) {}
+                }
+                continue;
+            }
             std::lock_guard<std::mutex> lock(replicas_mutex_);
-            replicas_.push_back(client_fd);
+            if (std::find(replicas_.begin(), replicas_.end(), client_fd) == replicas_.end()) {
+                replicas_.push_back(client_fd);
+            }
             std::string resp = "+OK\r\n";
             send(client_fd, resp.c_str(), resp.size(), 0);
             send_full_resync(client_fd);
@@ -486,6 +512,42 @@ std::string Server::process_command(std::string_view raw, bool from_master) {
     else if (cmd.name == "DBSIZE") {
         return Parser::integer_response(static_cast<int>(storage_.size()));
     }
+    else if (cmd.name == "WAIT") {
+        if (cmd.args.size() < 2) return Parser::error_response("wrong number of arguments for WAIT");
+        int num_replicas;
+        long long timeout_ms;
+        try {
+            size_t pos;
+            num_replicas = std::stoi(cmd.args[0], &pos);
+            if (pos != cmd.args[0].size()) return Parser::error_response("value is not an integer or out of range");
+            timeout_ms = std::stoll(cmd.args[1], &pos);
+            if (pos != cmd.args[1].size()) return Parser::error_response("value is not an integer or out of range");
+        } catch (...) {
+            return Parser::error_response("value is not an integer or out of range");
+        }
+
+        long long target_offset = repl_offset_.load();
+        auto count_acked = [this, target_offset]() {
+            std::lock_guard<std::mutex> lock(replicas_mutex_);
+            int n = 0;
+            for (const auto& [fd, offset] : replica_acks_) {
+                if (offset >= target_offset) n++;
+            }
+            return n;
+        };
+
+        auto start = std::chrono::steady_clock::now();
+        int acked = count_acked();
+        while (acked < num_replicas) {
+            if (timeout_ms > 0 &&
+                std::chrono::steady_clock::now() - start >= std::chrono::milliseconds(timeout_ms)) {
+                break;
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(20));
+            acked = count_acked();
+        }
+        return Parser::integer_response(acked);
+    }
 
     return Parser::error_response("unknown command '" + cmd.name + "'");
 }
@@ -603,6 +665,10 @@ void Server::replica_loop(int master_fd) {
                 process_command(msg, true);
                 repl_offset_ += static_cast<long long>(msg.size());
             }
+
+            std::string ack = Parser::encode_command(
+                {"REPLCONF", "ACK", std::to_string(repl_offset_.load())});
+            send(master_fd, ack.c_str(), ack.size(), 0);
         }
     }
     close(master_fd);

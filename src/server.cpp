@@ -451,6 +451,18 @@ std::string Server::process_command(std::string_view raw, bool from_master) {
         if (cmd.args.size() < 1) return Parser::error_response("wrong number of arguments for HLEN");
         return Parser::integer_response(storage_.hlen(cmd.args[0]));
     }
+    else if (cmd.name == "HKEYS") {
+        if (cmd.args.size() < 1) return Parser::error_response("wrong number of arguments for HKEYS");
+        auto fields = storage_.hkeys(cmd.args[0]);
+        std::vector<std::optional<std::string>> values(fields.begin(), fields.end());
+        return Parser::array_response(values);
+    }
+    else if (cmd.name == "HVALS") {
+        if (cmd.args.size() < 1) return Parser::error_response("wrong number of arguments for HVALS");
+        auto values_vec = storage_.hvals(cmd.args[0]);
+        std::vector<std::optional<std::string>> values(values_vec.begin(), values_vec.end());
+        return Parser::array_response(values);
+    }
     else if (cmd.name == "EXISTS") {
         if (cmd.args.size() < 1) return Parser::error_response("wrong number of arguments for EXISTS");
         return Parser::integer_response(storage_.exists(cmd.args[0]) ? 1 : 0);

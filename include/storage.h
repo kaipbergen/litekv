@@ -47,6 +47,8 @@ public:
     std::vector<std::pair<std::string, std::string>> hgetall(const std::string& key);
     bool hexists(const std::string& key, const std::string& field);
     long long hlen(const std::string& key);
+    std::vector<std::string> hkeys(const std::string& key);
+    std::vector<std::string> hvals(const std::string& key);
     void flush();
     void load_aof();
     size_t size() const;

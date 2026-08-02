@@ -508,6 +508,30 @@ long long Storage::hlen(const std::string& key) {
     return static_cast<long long>(it->second.size());
 }
 
+std::vector<std::string> Storage::hkeys(const std::string& key) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    std::vector<std::string> result;
+    auto it = hashes_.find(key);
+    if (it == hashes_.end()) return result;
+    result.reserve(it->second.size());
+    for (const auto& [field, value] : it->second) {
+        result.push_back(field);
+    }
+    return result;
+}
+
+std::vector<std::string> Storage::hvals(const std::string& key) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    std::vector<std::string> result;
+    auto it = hashes_.find(key);
+    if (it == hashes_.end()) return result;
+    result.reserve(it->second.size());
+    for (const auto& [field, value] : it->second) {
+        result.push_back(value);
+    }
+    return result;
+}
+
 void Storage::flush() {
     std::lock_guard<std::mutex> lock(mutex_);
     data_.clear();

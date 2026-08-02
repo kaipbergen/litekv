@@ -459,6 +459,34 @@ TEST_CASE("hlen reports the number of fields", "[storage]") {
     REQUIRE(storage.hlen("user") == 1);
 }
 
+TEST_CASE("hkeys returns all field names", "[storage]") {
+    auto path = temp_aof_path("hkeys");
+    std::remove(path.c_str());
+    Storage storage(path);
+
+    REQUIRE(storage.hkeys("missing").empty());
+
+    storage.hset("user", "name", "alice");
+    storage.hset("user", "age", "30");
+    auto fields = storage.hkeys("user");
+    std::sort(fields.begin(), fields.end());
+    REQUIRE(fields == std::vector<std::string>{"age", "name"});
+}
+
+TEST_CASE("hvals returns all field values", "[storage]") {
+    auto path = temp_aof_path("hvals");
+    std::remove(path.c_str());
+    Storage storage(path);
+
+    REQUIRE(storage.hvals("missing").empty());
+
+    storage.hset("user", "name", "alice");
+    storage.hset("user", "age", "30");
+    auto values = storage.hvals("user");
+    std::sort(values.begin(), values.end());
+    REQUIRE(values == std::vector<std::string>{"30", "alice"});
+}
+
 TEST_CASE("flush clears all keys", "[storage]") {
     auto path = temp_aof_path("flush");
     std::remove(path.c_str());

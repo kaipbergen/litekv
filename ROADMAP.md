@@ -42,7 +42,7 @@ Progress is tracked by checking items off below (`- [ ]` → `- [x] (Day N, YYYY
 ## Lists
 - [x] LPUSH / RPUSH (Day 6, 2026-08-04)
 - [x] LPOP / RPOP (Day 6, 2026-08-04)
-- [ ] LRANGE / LLEN
+- [x] LRANGE / LLEN (Day 6, 2026-08-04)
 
 ## Sets
 - [ ] SADD / SREM

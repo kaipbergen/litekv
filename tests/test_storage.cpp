@@ -555,6 +555,36 @@ TEST_CASE("lpop and rpop remove the key once the list is empty", "[storage]") {
     REQUIRE_FALSE(storage.rpop("mylist").has_value());
 }
 
+TEST_CASE("lrange supports negative indices and out-of-range bounds", "[storage]") {
+    auto path = temp_aof_path("lrange");
+    std::remove(path.c_str());
+    Storage storage(path);
+
+    REQUIRE(storage.lrange("missing", 0, -1).empty());
+
+    storage.rpush("mylist", {"a", "b", "c", "d", "e"});
+    REQUIRE(storage.lrange("mylist", 0, -1) == std::vector<std::string>{"a", "b", "c", "d", "e"});
+    REQUIRE(storage.lrange("mylist", 1, 2) == std::vector<std::string>{"b", "c"});
+    REQUIRE(storage.lrange("mylist", -2, -1) == std::vector<std::string>{"d", "e"});
+    REQUIRE(storage.lrange("mylist", 3, 100) == std::vector<std::string>{"d", "e"});
+    REQUIRE(storage.lrange("mylist", -100, -100).empty());
+    REQUIRE(storage.lrange("mylist", -100, 0) == std::vector<std::string>{"a"});
+    REQUIRE(storage.lrange("mylist", 4, 1).empty());
+    REQUIRE(storage.lrange("mylist", 10, 20).empty());
+}
+
+TEST_CASE("llen reports list length or zero for missing key", "[storage]") {
+    auto path = temp_aof_path("llen");
+    std::remove(path.c_str());
+    Storage storage(path);
+
+    REQUIRE(storage.llen("missing") == 0);
+    storage.rpush("mylist", {"a", "b", "c"});
+    REQUIRE(storage.llen("mylist") == 3);
+    storage.lpop("mylist");
+    REQUIRE(storage.llen("mylist") == 2);
+}
+
 TEST_CASE("del removes a list key", "[storage]") {
     auto path = temp_aof_path("del_list");
     std::remove(path.c_str());

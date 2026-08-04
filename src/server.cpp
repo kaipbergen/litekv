@@ -395,6 +395,7 @@ std::string Server::process_command(std::string_view raw, bool from_master) {
     else if (cmd.name == "TYPE") {
         if (cmd.args.size() < 1) return Parser::error_response("wrong number of arguments for TYPE");
         if (storage_.hlen(cmd.args[0]) > 0) return std::string("+hash\r\n");
+        if (storage_.llen(cmd.args[0]) > 0) return std::string("+list\r\n");
         return storage_.exists(cmd.args[0]) ? std::string("+string\r\n") : std::string("+none\r\n");
     }
     else if (cmd.name == "MGET") {
@@ -486,6 +487,26 @@ std::string Server::process_command(std::string_view raw, bool from_master) {
         }
         if (!val.has_value()) return Parser::null_response();
         return Parser::bulk_response(val.value());
+    }
+    else if (cmd.name == "LRANGE") {
+        if (cmd.args.size() < 3) return Parser::error_response("wrong number of arguments for LRANGE");
+        long long start, stop;
+        try {
+            size_t pos;
+            start = std::stoll(cmd.args[1], &pos);
+            if (pos != cmd.args[1].size()) return Parser::error_response("value is not an integer or out of range");
+            stop = std::stoll(cmd.args[2], &pos);
+            if (pos != cmd.args[2].size()) return Parser::error_response("value is not an integer or out of range");
+        } catch (...) {
+            return Parser::error_response("value is not an integer or out of range");
+        }
+        auto items = storage_.lrange(cmd.args[0], start, stop);
+        std::vector<std::optional<std::string>> values(items.begin(), items.end());
+        return Parser::array_response(values);
+    }
+    else if (cmd.name == "LLEN") {
+        if (cmd.args.size() < 1) return Parser::error_response("wrong number of arguments for LLEN");
+        return Parser::integer_response(storage_.llen(cmd.args[0]));
     }
     else if (cmd.name == "EXISTS") {
         if (cmd.args.size() < 1) return Parser::error_response("wrong number of arguments for EXISTS");

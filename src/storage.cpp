@@ -558,6 +558,28 @@ long long Storage::rpush(const std::string& key, const std::vector<std::string>&
     return static_cast<long long>(lst.size());
 }
 
+std::optional<std::string> Storage::lpop(const std::string& key) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto it = lists_.find(key);
+    if (it == lists_.end() || it->second.empty()) return std::nullopt;
+    std::string val = it->second.front();
+    it->second.pop_front();
+    if (it->second.empty()) lists_.erase(it);
+    append_aof("LPOP " + key);
+    return val;
+}
+
+std::optional<std::string> Storage::rpop(const std::string& key) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto it = lists_.find(key);
+    if (it == lists_.end() || it->second.empty()) return std::nullopt;
+    std::string val = it->second.back();
+    it->second.pop_back();
+    if (it->second.empty()) lists_.erase(it);
+    append_aof("RPOP " + key);
+    return val;
+}
+
 std::vector<std::string> Storage::lrange(const std::string& key, long long start, long long stop) {
     std::lock_guard<std::mutex> lock(mutex_);
     std::vector<std::string> result;
@@ -695,6 +717,22 @@ void Storage::load_aof() {
             std::string val;
             while (ss >> val) lists_[key].push_back(val);
             loaded++;
+        } else if (cmd == "LPOP") {
+            std::string key;
+            ss >> key;
+            auto it = lists_.find(key);
+            if (it != lists_.end() && !it->second.empty()) {
+                it->second.pop_front();
+                if (it->second.empty()) lists_.erase(it);
+            }
+        } else if (cmd == "RPOP") {
+            std::string key;
+            ss >> key;
+            auto it = lists_.find(key);
+            if (it != lists_.end() && !it->second.empty()) {
+                it->second.pop_back();
+                if (it->second.empty()) lists_.erase(it);
+            }
         } else if (cmd == "FLUSHALL") {
             data_.clear();
             lru_list_.clear();

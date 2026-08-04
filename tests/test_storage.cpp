@@ -516,6 +516,45 @@ TEST_CASE("lpush and rpush accumulate onto an existing list", "[storage]") {
     REQUIRE(storage.lrange("mylist", 0, -1) == std::vector<std::string>{"a", "b", "c", "d"});
 }
 
+TEST_CASE("lpop removes and returns the head of a list", "[storage]") {
+    auto path = temp_aof_path("lpop");
+    std::remove(path.c_str());
+    Storage storage(path);
+
+    REQUIRE_FALSE(storage.lpop("mylist").has_value());
+
+    storage.rpush("mylist", {"a", "b", "c"});
+    auto v = storage.lpop("mylist");
+    REQUIRE(v.has_value());
+    REQUIRE(v.value() == "a");
+    REQUIRE(storage.lrange("mylist", 0, -1) == std::vector<std::string>{"b", "c"});
+}
+
+TEST_CASE("rpop removes and returns the tail of a list", "[storage]") {
+    auto path = temp_aof_path("rpop");
+    std::remove(path.c_str());
+    Storage storage(path);
+
+    REQUIRE_FALSE(storage.rpop("mylist").has_value());
+
+    storage.rpush("mylist", {"a", "b", "c"});
+    auto v = storage.rpop("mylist");
+    REQUIRE(v.has_value());
+    REQUIRE(v.value() == "c");
+    REQUIRE(storage.lrange("mylist", 0, -1) == std::vector<std::string>{"a", "b"});
+}
+
+TEST_CASE("lpop and rpop remove the key once the list is empty", "[storage]") {
+    auto path = temp_aof_path("pop_empty");
+    std::remove(path.c_str());
+    Storage storage(path);
+
+    storage.rpush("mylist", {"only"});
+    REQUIRE(storage.lpop("mylist").value() == "only");
+    REQUIRE_FALSE(storage.exists("mylist"));
+    REQUIRE_FALSE(storage.rpop("mylist").has_value());
+}
+
 TEST_CASE("del removes a list key", "[storage]") {
     auto path = temp_aof_path("del_list");
     std::remove(path.c_str());

@@ -52,6 +52,8 @@ public:
     std::vector<std::string> hvals(const std::string& key);
     long long lpush(const std::string& key, const std::vector<std::string>& values);
     long long rpush(const std::string& key, const std::vector<std::string>& values);
+    std::optional<std::string> lpop(const std::string& key);
+    std::optional<std::string> rpop(const std::string& key);
     std::vector<std::string> lrange(const std::string& key, long long start, long long stop);
     long long llen(const std::string& key);
     void flush();

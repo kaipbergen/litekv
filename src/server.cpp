@@ -275,7 +275,8 @@ std::string Server::process_command(std::string_view raw, bool from_master) {
             cmd.name == "EXPIRE" || cmd.name == "PERSIST" || cmd.name == "PEXPIRE" ||
             cmd.name == "HSET" || cmd.name == "HDEL" ||
             cmd.name == "LPUSH" || cmd.name == "RPUSH" ||
-            cmd.name == "LPOP" || cmd.name == "RPOP") {
+            cmd.name == "LPOP" || cmd.name == "RPOP" ||
+            cmd.name == "SADD" || cmd.name == "SREM") {
             return Parser::error_response("READONLY You can't write against a read only replica");
         }
     }
@@ -396,6 +397,7 @@ std::string Server::process_command(std::string_view raw, bool from_master) {
         if (cmd.args.size() < 1) return Parser::error_response("wrong number of arguments for TYPE");
         if (storage_.hlen(cmd.args[0]) > 0) return std::string("+hash\r\n");
         if (storage_.llen(cmd.args[0]) > 0) return std::string("+list\r\n");
+        if (!storage_.smembers(cmd.args[0]).empty()) return std::string("+set\r\n");
         return storage_.exists(cmd.args[0]) ? std::string("+string\r\n") : std::string("+none\r\n");
     }
     else if (cmd.name == "MGET") {
@@ -507,6 +509,26 @@ std::string Server::process_command(std::string_view raw, bool from_master) {
     else if (cmd.name == "LLEN") {
         if (cmd.args.size() < 1) return Parser::error_response("wrong number of arguments for LLEN");
         return Parser::integer_response(storage_.llen(cmd.args[0]));
+    }
+    else if (cmd.name == "SADD") {
+        if (cmd.args.size() < 2) return Parser::error_response("wrong number of arguments for SADD");
+        std::vector<std::string> members(cmd.args.begin() + 1, cmd.args.end());
+        long long added = storage_.sadd(cmd.args[0], members);
+        if (added > 0 && role_ == Role::MASTER) {
+            std::string raw_copy(raw);
+            propagate_to_replicas(raw_copy);
+        }
+        return Parser::integer_response(added);
+    }
+    else if (cmd.name == "SREM") {
+        if (cmd.args.size() < 2) return Parser::error_response("wrong number of arguments for SREM");
+        std::vector<std::string> members(cmd.args.begin() + 1, cmd.args.end());
+        long long removed = storage_.srem(cmd.args[0], members);
+        if (removed > 0 && role_ == Role::MASTER) {
+            std::string raw_copy(raw);
+            propagate_to_replicas(raw_copy);
+        }
+        return Parser::integer_response(removed);
     }
     else if (cmd.name == "EXISTS") {
         if (cmd.args.size() < 1) return Parser::error_response("wrong number of arguments for EXISTS");

@@ -2,6 +2,7 @@
 
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <list>
 #include <deque>
 #include <mutex>
@@ -56,6 +57,9 @@ public:
     std::optional<std::string> rpop(const std::string& key);
     std::vector<std::string> lrange(const std::string& key, long long start, long long stop);
     long long llen(const std::string& key);
+    long long sadd(const std::string& key, const std::vector<std::string>& members);
+    long long srem(const std::string& key, const std::vector<std::string>& members);
+    std::vector<std::string> smembers(const std::string& key);
     void flush();
     void load_aof();
     size_t size() const;
@@ -69,6 +73,7 @@ private:
         std::pair<Entry, std::list<std::string>::iterator>> data_;
     std::unordered_map<std::string, std::unordered_map<std::string, std::string>> hashes_;
     std::unordered_map<std::string, std::deque<std::string>> lists_;
+    std::unordered_map<std::string, std::unordered_set<std::string>> sets_;
 
     std::mutex mutex_;
     std::string aof_path_;

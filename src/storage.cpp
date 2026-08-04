@@ -257,6 +257,7 @@ bool Storage::del(const std::string& key) {
     }
     if (hashes_.erase(key) > 0) deleted = true;
     if (lists_.erase(key) > 0) deleted = true;
+    if (sets_.erase(key) > 0) deleted = true;
     if (deleted) append_aof("DEL " + key);
     return deleted;
 }
@@ -273,7 +274,8 @@ bool Storage::exists(const std::string& key) {
         }
     }
     if (hashes_.find(key) != hashes_.end()) return true;
-    return lists_.find(key) != lists_.end();
+    if (lists_.find(key) != lists_.end()) return true;
+    return sets_.find(key) != sets_.end();
 }
 
 int Storage::ttl(const std::string& key) {
@@ -611,12 +613,56 @@ long long Storage::llen(const std::string& key) {
     return static_cast<long long>(it->second.size());
 }
 
+long long Storage::sadd(const std::string& key, const std::vector<std::string>& members) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto& set = sets_[key];
+    long long added = 0;
+    std::string line = "SADD " + key;
+    for (const auto& m : members) {
+        if (set.insert(m).second) {
+            added++;
+            line += " " + m;
+        }
+    }
+    if (added > 0) append_aof(line);
+    return added;
+}
+
+long long Storage::srem(const std::string& key, const std::vector<std::string>& members) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto it = sets_.find(key);
+    if (it == sets_.end()) return 0;
+
+    long long removed = 0;
+    std::string line = "SREM " + key;
+    for (const auto& m : members) {
+        if (it->second.erase(m) > 0) {
+            removed++;
+            line += " " + m;
+        }
+    }
+    if (it->second.empty()) sets_.erase(it);
+    if (removed > 0) append_aof(line);
+    return removed;
+}
+
+std::vector<std::string> Storage::smembers(const std::string& key) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    std::vector<std::string> result;
+    auto it = sets_.find(key);
+    if (it == sets_.end()) return result;
+    result.reserve(it->second.size());
+    for (const auto& m : it->second) result.push_back(m);
+    return result;
+}
+
 void Storage::flush() {
     std::lock_guard<std::mutex> lock(mutex_);
     data_.clear();
     lru_list_.clear();
     hashes_.clear();
     lists_.clear();
+    sets_.clear();
     append_aof("FLUSHALL");
 }
 
@@ -651,6 +697,11 @@ std::vector<std::vector<std::string>> Storage::dump_commands() {
     for (const auto& [key, lst] : lists_) {
         std::vector<std::string> cmd = {"RPUSH", key};
         for (const auto& v : lst) cmd.push_back(v);
+        commands.push_back(std::move(cmd));
+    }
+    for (const auto& [key, set] : sets_) {
+        std::vector<std::string> cmd = {"SADD", key};
+        for (const auto& m : set) cmd.push_back(m);
         commands.push_back(std::move(cmd));
     }
     return commands;
@@ -692,6 +743,7 @@ void Storage::load_aof() {
             }
             hashes_.erase(key);
             lists_.erase(key);
+            sets_.erase(key);
         } else if (cmd == "HSET") {
             std::string key, field, value;
             ss >> key >> field >> value;
@@ -733,11 +785,27 @@ void Storage::load_aof() {
                 it->second.pop_back();
                 if (it->second.empty()) lists_.erase(it);
             }
+        } else if (cmd == "SADD") {
+            std::string key;
+            ss >> key;
+            std::string member;
+            while (ss >> member) sets_[key].insert(member);
+            loaded++;
+        } else if (cmd == "SREM") {
+            std::string key;
+            ss >> key;
+            std::string member;
+            auto it = sets_.find(key);
+            while (ss >> member) {
+                if (it != sets_.end()) it->second.erase(member);
+            }
+            if (it != sets_.end() && it->second.empty()) sets_.erase(it);
         } else if (cmd == "FLUSHALL") {
             data_.clear();
             lru_list_.clear();
             hashes_.clear();
             lists_.clear();
+            sets_.clear();
         }
     }
     std::cout << "AOF: loaded " << loaded << " entries" << std::endl;

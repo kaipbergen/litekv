@@ -45,7 +45,7 @@ Progress is tracked by checking items off below (`- [ ]` → `- [x] (Day N, YYYY
 - [x] LRANGE / LLEN (Day 6, 2026-08-04)
 
 ## Sets
-- [ ] SADD / SREM
+- [x] SADD / SREM (Day 6, 2026-08-04)
 - [ ] SISMEMBER / SMEMBERS / SCARD
 - [ ] Static analysis integration (clang-tidy)
 

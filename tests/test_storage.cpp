@@ -596,6 +596,64 @@ TEST_CASE("del removes a list key", "[storage]") {
     REQUIRE_FALSE(storage.exists("mylist"));
 }
 
+TEST_CASE("sadd adds members and reports how many were new", "[storage]") {
+    auto path = temp_aof_path("sadd");
+    std::remove(path.c_str());
+    Storage storage(path);
+
+    REQUIRE(storage.sadd("myset", {"a", "b", "c"}) == 3);
+    REQUIRE(storage.sadd("myset", {"b", "c", "d"}) == 1);
+
+    auto members = storage.smembers("myset");
+    std::sort(members.begin(), members.end());
+    REQUIRE(members == std::vector<std::string>{"a", "b", "c", "d"});
+}
+
+TEST_CASE("srem removes members and reports how many were removed", "[storage]") {
+    auto path = temp_aof_path("srem");
+    std::remove(path.c_str());
+    Storage storage(path);
+
+    REQUIRE(storage.srem("myset", {"a"}) == 0);
+
+    storage.sadd("myset", {"a", "b", "c"});
+    REQUIRE(storage.srem("myset", {"a", "missing"}) == 1);
+
+    auto members = storage.smembers("myset");
+    std::sort(members.begin(), members.end());
+    REQUIRE(members == std::vector<std::string>{"b", "c"});
+}
+
+TEST_CASE("srem removes the key entirely once all members are gone", "[storage]") {
+    auto path = temp_aof_path("srem_empty");
+    std::remove(path.c_str());
+    Storage storage(path);
+
+    storage.sadd("myset", {"only"});
+    REQUIRE(storage.srem("myset", {"only"}) == 1);
+    REQUIRE_FALSE(storage.exists("myset"));
+    REQUIRE(storage.srem("myset", {"only"}) == 0);
+}
+
+TEST_CASE("smembers returns empty for a missing set", "[storage]") {
+    auto path = temp_aof_path("smembers_missing");
+    std::remove(path.c_str());
+    Storage storage(path);
+
+    REQUIRE(storage.smembers("missing").empty());
+}
+
+TEST_CASE("del removes a set key", "[storage]") {
+    auto path = temp_aof_path("del_set");
+    std::remove(path.c_str());
+    Storage storage(path);
+
+    storage.sadd("myset", {"a"});
+    REQUIRE(storage.exists("myset"));
+    REQUIRE(storage.del("myset"));
+    REQUIRE_FALSE(storage.exists("myset"));
+}
+
 TEST_CASE("flush clears all keys", "[storage]") {
     auto path = temp_aof_path("flush");
     std::remove(path.c_str());

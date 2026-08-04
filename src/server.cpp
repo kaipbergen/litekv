@@ -273,7 +273,8 @@ std::string Server::process_command(std::string_view raw, bool from_master) {
             cmd.name == "APPEND" || cmd.name == "MSET" || cmd.name == "GETSET" ||
             cmd.name == "SETNX" || cmd.name == "RENAME" ||
             cmd.name == "EXPIRE" || cmd.name == "PERSIST" || cmd.name == "PEXPIRE" ||
-            cmd.name == "HSET" || cmd.name == "HDEL") {
+            cmd.name == "HSET" || cmd.name == "HDEL" ||
+            cmd.name == "LPUSH" || cmd.name == "RPUSH") {
             return Parser::error_response("READONLY You can't write against a read only replica");
         }
     }
@@ -462,6 +463,18 @@ std::string Server::process_command(std::string_view raw, bool from_master) {
         auto values_vec = storage_.hvals(cmd.args[0]);
         std::vector<std::optional<std::string>> values(values_vec.begin(), values_vec.end());
         return Parser::array_response(values);
+    }
+    else if (cmd.name == "LPUSH" || cmd.name == "RPUSH") {
+        if (cmd.args.size() < 2) return Parser::error_response("wrong number of arguments for " + cmd.name);
+        std::vector<std::string> values(cmd.args.begin() + 1, cmd.args.end());
+        long long len = (cmd.name == "LPUSH")
+            ? storage_.lpush(cmd.args[0], values)
+            : storage_.rpush(cmd.args[0], values);
+        if (role_ == Role::MASTER) {
+            std::string raw_copy(raw);
+            propagate_to_replicas(raw_copy);
+        }
+        return Parser::integer_response(len);
     }
     else if (cmd.name == "EXISTS") {
         if (cmd.args.size() < 1) return Parser::error_response("wrong number of arguments for EXISTS");

@@ -256,6 +256,7 @@ bool Storage::del(const std::string& key) {
         deleted = true;
     }
     if (hashes_.erase(key) > 0) deleted = true;
+    if (lists_.erase(key) > 0) deleted = true;
     if (deleted) append_aof("DEL " + key);
     return deleted;
 }
@@ -271,7 +272,8 @@ bool Storage::exists(const std::string& key) {
             return true;
         }
     }
-    return hashes_.find(key) != hashes_.end();
+    if (hashes_.find(key) != hashes_.end()) return true;
+    return lists_.find(key) != lists_.end();
 }
 
 int Storage::ttl(const std::string& key) {
@@ -532,11 +534,67 @@ std::vector<std::string> Storage::hvals(const std::string& key) {
     return result;
 }
 
+long long Storage::lpush(const std::string& key, const std::vector<std::string>& values) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto& lst = lists_[key];
+    for (const auto& v : values) lst.push_front(v);
+
+    std::string line = "LPUSH " + key;
+    for (const auto& v : values) line += " " + v;
+    append_aof(line);
+
+    return static_cast<long long>(lst.size());
+}
+
+long long Storage::rpush(const std::string& key, const std::vector<std::string>& values) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto& lst = lists_[key];
+    for (const auto& v : values) lst.push_back(v);
+
+    std::string line = "RPUSH " + key;
+    for (const auto& v : values) line += " " + v;
+    append_aof(line);
+
+    return static_cast<long long>(lst.size());
+}
+
+std::vector<std::string> Storage::lrange(const std::string& key, long long start, long long stop) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    std::vector<std::string> result;
+    auto it = lists_.find(key);
+    if (it == lists_.end()) return result;
+
+    const auto& lst = it->second;
+    long long len = static_cast<long long>(lst.size());
+    if (len == 0) return result;
+
+    if (start < 0) start = std::max(len + start, 0LL);
+    if (stop < 0) stop = len + stop;
+    if (stop >= len) stop = len - 1;
+    if (start > stop || start >= len) return result;
+
+    result.reserve(static_cast<size_t>(stop - start + 1));
+    auto lit = lst.begin();
+    std::advance(lit, start);
+    for (long long i = start; i <= stop; i++, ++lit) {
+        result.push_back(*lit);
+    }
+    return result;
+}
+
+long long Storage::llen(const std::string& key) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto it = lists_.find(key);
+    if (it == lists_.end()) return 0;
+    return static_cast<long long>(it->second.size());
+}
+
 void Storage::flush() {
     std::lock_guard<std::mutex> lock(mutex_);
     data_.clear();
     lru_list_.clear();
     hashes_.clear();
+    lists_.clear();
     append_aof("FLUSHALL");
 }
 
@@ -567,6 +625,11 @@ std::vector<std::vector<std::string>> Storage::dump_commands() {
         for (const auto& [field, value] : fields) {
             commands.push_back({"HSET", key, field, value});
         }
+    }
+    for (const auto& [key, lst] : lists_) {
+        std::vector<std::string> cmd = {"RPUSH", key};
+        for (const auto& v : lst) cmd.push_back(v);
+        commands.push_back(std::move(cmd));
     }
     return commands;
 }
@@ -606,6 +669,7 @@ void Storage::load_aof() {
                 data_.erase(it);
             }
             hashes_.erase(key);
+            lists_.erase(key);
         } else if (cmd == "HSET") {
             std::string key, field, value;
             ss >> key >> field >> value;
@@ -619,10 +683,23 @@ void Storage::load_aof() {
                 it->second.erase(field);
                 if (it->second.empty()) hashes_.erase(it);
             }
+        } else if (cmd == "LPUSH") {
+            std::string key;
+            ss >> key;
+            std::string val;
+            while (ss >> val) lists_[key].push_front(val);
+            loaded++;
+        } else if (cmd == "RPUSH") {
+            std::string key;
+            ss >> key;
+            std::string val;
+            while (ss >> val) lists_[key].push_back(val);
+            loaded++;
         } else if (cmd == "FLUSHALL") {
             data_.clear();
             lru_list_.clear();
             hashes_.clear();
+            lists_.clear();
         }
     }
     std::cout << "AOF: loaded " << loaded << " entries" << std::endl;

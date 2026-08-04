@@ -3,6 +3,7 @@
 #include <string>
 #include <unordered_map>
 #include <list>
+#include <deque>
 #include <mutex>
 #include <optional>
 #include <chrono>
@@ -49,6 +50,10 @@ public:
     long long hlen(const std::string& key);
     std::vector<std::string> hkeys(const std::string& key);
     std::vector<std::string> hvals(const std::string& key);
+    long long lpush(const std::string& key, const std::vector<std::string>& values);
+    long long rpush(const std::string& key, const std::vector<std::string>& values);
+    std::vector<std::string> lrange(const std::string& key, long long start, long long stop);
+    long long llen(const std::string& key);
     void flush();
     void load_aof();
     size_t size() const;
@@ -61,6 +66,7 @@ private:
     std::unordered_map<std::string,
         std::pair<Entry, std::list<std::string>::iterator>> data_;
     std::unordered_map<std::string, std::unordered_map<std::string, std::string>> hashes_;
+    std::unordered_map<std::string, std::deque<std::string>> lists_;
 
     std::mutex mutex_;
     std::string aof_path_;

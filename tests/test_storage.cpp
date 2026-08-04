@@ -487,6 +487,46 @@ TEST_CASE("hvals returns all field values", "[storage]") {
     REQUIRE(values == std::vector<std::string>{"30", "alice"});
 }
 
+TEST_CASE("lpush prepends values so the last argument ends up at the head", "[storage]") {
+    auto path = temp_aof_path("lpush");
+    std::remove(path.c_str());
+    Storage storage(path);
+
+    REQUIRE(storage.lpush("mylist", {"a", "b", "c"}) == 3);
+    REQUIRE(storage.lrange("mylist", 0, -1) == std::vector<std::string>{"c", "b", "a"});
+}
+
+TEST_CASE("rpush appends values in argument order", "[storage]") {
+    auto path = temp_aof_path("rpush");
+    std::remove(path.c_str());
+    Storage storage(path);
+
+    REQUIRE(storage.rpush("mylist", {"a", "b", "c"}) == 3);
+    REQUIRE(storage.lrange("mylist", 0, -1) == std::vector<std::string>{"a", "b", "c"});
+}
+
+TEST_CASE("lpush and rpush accumulate onto an existing list", "[storage]") {
+    auto path = temp_aof_path("lpush_rpush_mix");
+    std::remove(path.c_str());
+    Storage storage(path);
+
+    storage.rpush("mylist", {"b", "c"});
+    REQUIRE(storage.lpush("mylist", {"a"}) == 3);
+    REQUIRE(storage.rpush("mylist", {"d"}) == 4);
+    REQUIRE(storage.lrange("mylist", 0, -1) == std::vector<std::string>{"a", "b", "c", "d"});
+}
+
+TEST_CASE("del removes a list key", "[storage]") {
+    auto path = temp_aof_path("del_list");
+    std::remove(path.c_str());
+    Storage storage(path);
+
+    storage.rpush("mylist", {"a"});
+    REQUIRE(storage.exists("mylist"));
+    REQUIRE(storage.del("mylist"));
+    REQUIRE_FALSE(storage.exists("mylist"));
+}
+
 TEST_CASE("flush clears all keys", "[storage]") {
     auto path = temp_aof_path("flush");
     std::remove(path.c_str());

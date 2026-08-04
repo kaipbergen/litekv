@@ -40,7 +40,7 @@ Progress is tracked by checking items off below (`- [ ]` → `- [x] (Day N, YYYY
 - [x] Integration test script for replication (bash/python, master SET → replica GET) (Day 6, 2026-08-04)
 
 ## Lists
-- [ ] LPUSH / RPUSH
+- [x] LPUSH / RPUSH (Day 6, 2026-08-04)
 - [ ] LPOP / RPOP
 - [ ] LRANGE / LLEN
 

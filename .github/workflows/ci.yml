@@ -19,3 +19,17 @@ jobs:
       - name: Test
         working-directory: build
         run: ./litekv_tests
+
+  clang-tidy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install clang-tidy
+        run: sudo apt-get update && sudo apt-get install -y clang-tidy
+
+      - name: Configure
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DENABLE_CLANG_TIDY=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+
+      - name: Run clang-tidy
+        run: clang-tidy -p build src/*.cpp

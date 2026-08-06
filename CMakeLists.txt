@@ -18,6 +18,16 @@ add_executable(litekv
 
 target_compile_options(litekv PRIVATE -Wall -Wextra)
 
+option(ENABLE_CLANG_TIDY "Run clang-tidy on litekv sources during build" OFF)
+if(ENABLE_CLANG_TIDY)
+    find_program(CLANG_TIDY_EXE NAMES clang-tidy)
+    if(CLANG_TIDY_EXE)
+        set_target_properties(litekv PROPERTIES CXX_CLANG_TIDY "${CLANG_TIDY_EXE}")
+    else()
+        message(WARNING "ENABLE_CLANG_TIDY is ON but clang-tidy was not found")
+    endif()
+endif()
+
 enable_testing()
 
 add_executable(litekv_tests

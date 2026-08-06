@@ -46,7 +46,7 @@ Progress is tracked by checking items off below (`- [ ]` → `- [x] (Day N, YYYY
 
 ## Sets
 - [x] SADD / SREM (Day 6, 2026-08-04)
-- [ ] SISMEMBER / SMEMBERS / SCARD
+- [x] SISMEMBER / SMEMBERS / SCARD (Day 7, 2026-08-06)
 - [ ] Static analysis integration (clang-tidy)
 
 ## Sorted sets & transactions

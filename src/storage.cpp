@@ -656,6 +656,20 @@ std::vector<std::string> Storage::smembers(const std::string& key) {
     return result;
 }
 
+bool Storage::sismember(const std::string& key, const std::string& member) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto it = sets_.find(key);
+    if (it == sets_.end()) return false;
+    return it->second.count(member) > 0;
+}
+
+long long Storage::scard(const std::string& key) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto it = sets_.find(key);
+    if (it == sets_.end()) return 0;
+    return static_cast<long long>(it->second.size());
+}
+
 void Storage::flush() {
     std::lock_guard<std::mutex> lock(mutex_);
     data_.clear();

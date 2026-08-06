@@ -60,6 +60,8 @@ public:
     long long sadd(const std::string& key, const std::vector<std::string>& members);
     long long srem(const std::string& key, const std::vector<std::string>& members);
     std::vector<std::string> smembers(const std::string& key);
+    bool sismember(const std::string& key, const std::string& member);
+    long long scard(const std::string& key);
     void flush();
     void load_aof();
     size_t size() const;

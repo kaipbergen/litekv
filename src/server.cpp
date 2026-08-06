@@ -10,6 +10,8 @@
 #include <thread>
 #include <algorithm>
 #include <fcntl.h>
+#include <cmath>
+#include <cstdio>
 
 #ifdef __linux__
 #include <sys/epoll.h>
@@ -30,6 +32,16 @@ Server::Server(int port, const std::string& aof_path, Role role,
 static void set_nonblocking(int fd) {
     int flags = fcntl(fd, F_GETFL, 0);
     fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+}
+
+static std::string format_score(double value) {
+    if (std::isfinite(value) && value == static_cast<double>(static_cast<long long>(value)) &&
+        std::abs(value) < 1e15) {
+        return std::to_string(static_cast<long long>(value));
+    }
+    char buf[64];
+    snprintf(buf, sizeof(buf), "%.17g", value);
+    return std::string(buf);
 }
 
 void Server::start() {
@@ -276,7 +288,7 @@ std::string Server::process_command(std::string_view raw, bool from_master) {
             cmd.name == "HSET" || cmd.name == "HDEL" ||
             cmd.name == "LPUSH" || cmd.name == "RPUSH" ||
             cmd.name == "LPOP" || cmd.name == "RPOP" ||
-            cmd.name == "SADD" || cmd.name == "SREM") {
+            cmd.name == "SADD" || cmd.name == "SREM" || cmd.name == "ZADD") {
             return Parser::error_response("READONLY You can't write against a read only replica");
         }
     }
@@ -543,6 +555,35 @@ std::string Server::process_command(std::string_view raw, bool from_master) {
     else if (cmd.name == "SCARD") {
         if (cmd.args.size() < 1) return Parser::error_response("wrong number of arguments for SCARD");
         return Parser::integer_response(storage_.scard(cmd.args[0]));
+    }
+    else if (cmd.name == "ZADD") {
+        if (cmd.args.size() < 3 || (cmd.args.size() - 1) % 2 != 0) {
+            return Parser::error_response("wrong number of arguments for ZADD");
+        }
+        std::vector<std::pair<double, std::string>> members;
+        for (size_t i = 1; i + 1 < cmd.args.size(); i += 2) {
+            double score;
+            try {
+                size_t pos;
+                score = std::stod(cmd.args[i], &pos);
+                if (pos != cmd.args[i].size()) return Parser::error_response("value is not a valid float");
+            } catch (...) {
+                return Parser::error_response("value is not a valid float");
+            }
+            members.emplace_back(score, cmd.args[i + 1]);
+        }
+        long long added = storage_.zadd(cmd.args[0], members);
+        if (role_ == Role::MASTER) {
+            std::string raw_copy(raw);
+            propagate_to_replicas(raw_copy);
+        }
+        return Parser::integer_response(added);
+    }
+    else if (cmd.name == "ZSCORE") {
+        if (cmd.args.size() < 2) return Parser::error_response("wrong number of arguments for ZSCORE");
+        auto score = storage_.zscore(cmd.args[0], cmd.args[1]);
+        if (!score.has_value()) return Parser::null_response();
+        return Parser::bulk_response(format_score(score.value()));
     }
     else if (cmd.name == "EXISTS") {
         if (cmd.args.size() < 1) return Parser::error_response("wrong number of arguments for EXISTS");

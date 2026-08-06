@@ -62,6 +62,8 @@ public:
     std::vector<std::string> smembers(const std::string& key);
     bool sismember(const std::string& key, const std::string& member);
     long long scard(const std::string& key);
+    long long zadd(const std::string& key, const std::vector<std::pair<double, std::string>>& members);
+    std::optional<double> zscore(const std::string& key, const std::string& member);
     void flush();
     void load_aof();
     size_t size() const;
@@ -76,6 +78,7 @@ private:
     std::unordered_map<std::string, std::unordered_map<std::string, std::string>> hashes_;
     std::unordered_map<std::string, std::deque<std::string>> lists_;
     std::unordered_map<std::string, std::unordered_set<std::string>> sets_;
+    std::unordered_map<std::string, std::unordered_map<std::string, double>> zsets_;
 
     std::mutex mutex_;
     std::string aof_path_;

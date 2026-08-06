@@ -50,7 +50,7 @@ Progress is tracked by checking items off below (`- [ ]` → `- [x] (Day N, YYYY
 - [x] Static analysis integration (clang-tidy) (Day 7, 2026-08-06)
 
 ## Sorted sets & transactions
-- [ ] ZADD / ZSCORE
+- [x] ZADD / ZSCORE (Day 7, 2026-08-06)
 - [ ] ZRANGE
 - [ ] MULTI / EXEC / DISCARD
 - [ ] WATCH (optimistic locking)

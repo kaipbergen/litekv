@@ -4,6 +4,8 @@
 #include <sstream>
 #include <iostream>
 #include <algorithm>
+#include <cmath>
+#include <cstdio>
 
 namespace litekv {
 
@@ -670,6 +672,39 @@ long long Storage::scard(const std::string& key) {
     return static_cast<long long>(it->second.size());
 }
 
+static std::string format_double(double value) {
+    if (std::isfinite(value) && value == static_cast<double>(static_cast<long long>(value)) &&
+        std::abs(value) < 1e15) {
+        return std::to_string(static_cast<long long>(value));
+    }
+    char buf[64];
+    snprintf(buf, sizeof(buf), "%.17g", value);
+    return std::string(buf);
+}
+
+long long Storage::zadd(const std::string& key, const std::vector<std::pair<double, std::string>>& members) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto& zset = zsets_[key];
+    long long added = 0;
+    std::string line = "ZADD " + key;
+    for (const auto& [score, member] : members) {
+        if (zset.find(member) == zset.end()) added++;
+        zset[member] = score;
+        line += " " + format_double(score) + " " + member;
+    }
+    append_aof(line);
+    return added;
+}
+
+std::optional<double> Storage::zscore(const std::string& key, const std::string& member) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto it = zsets_.find(key);
+    if (it == zsets_.end()) return std::nullopt;
+    auto mit = it->second.find(member);
+    if (mit == it->second.end()) return std::nullopt;
+    return mit->second;
+}
+
 void Storage::flush() {
     std::lock_guard<std::mutex> lock(mutex_);
     data_.clear();
@@ -677,6 +712,7 @@ void Storage::flush() {
     hashes_.clear();
     lists_.clear();
     sets_.clear();
+    zsets_.clear();
     append_aof("FLUSHALL");
 }
 
@@ -716,6 +752,14 @@ std::vector<std::vector<std::string>> Storage::dump_commands() {
     for (const auto& [key, set] : sets_) {
         std::vector<std::string> cmd = {"SADD", key};
         for (const auto& m : set) cmd.push_back(m);
+        commands.push_back(std::move(cmd));
+    }
+    for (const auto& [key, zset] : zsets_) {
+        std::vector<std::string> cmd = {"ZADD", key};
+        for (const auto& [member, score] : zset) {
+            cmd.push_back(format_double(score));
+            cmd.push_back(member);
+        }
         commands.push_back(std::move(cmd));
     }
     return commands;
@@ -814,12 +858,21 @@ void Storage::load_aof() {
                 if (it != sets_.end()) it->second.erase(member);
             }
             if (it != sets_.end() && it->second.empty()) sets_.erase(it);
+        } else if (cmd == "ZADD") {
+            std::string key;
+            ss >> key;
+            std::string score_str, member;
+            while (ss >> score_str >> member) {
+                zsets_[key][member] = std::stod(score_str);
+            }
+            loaded++;
         } else if (cmd == "FLUSHALL") {
             data_.clear();
             lru_list_.clear();
             hashes_.clear();
             lists_.clear();
             sets_.clear();
+            zsets_.clear();
         }
     }
     std::cout << "AOF: loaded " << loaded << " entries" << std::endl;

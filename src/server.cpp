@@ -585,6 +585,22 @@ std::string Server::process_command(std::string_view raw, bool from_master) {
         if (!score.has_value()) return Parser::null_response();
         return Parser::bulk_response(format_score(score.value()));
     }
+    else if (cmd.name == "ZRANGE") {
+        if (cmd.args.size() < 3) return Parser::error_response("wrong number of arguments for ZRANGE");
+        long long start, stop;
+        try {
+            size_t pos;
+            start = std::stoll(cmd.args[1], &pos);
+            if (pos != cmd.args[1].size()) return Parser::error_response("value is not an integer or out of range");
+            stop = std::stoll(cmd.args[2], &pos);
+            if (pos != cmd.args[2].size()) return Parser::error_response("value is not an integer or out of range");
+        } catch (...) {
+            return Parser::error_response("value is not an integer or out of range");
+        }
+        auto items = storage_.zrange(cmd.args[0], start, stop);
+        std::vector<std::optional<std::string>> values(items.begin(), items.end());
+        return Parser::array_response(values);
+    }
     else if (cmd.name == "EXISTS") {
         if (cmd.args.size() < 1) return Parser::error_response("wrong number of arguments for EXISTS");
         return Parser::integer_response(storage_.exists(cmd.args[0]) ? 1 : 0);

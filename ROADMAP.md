@@ -51,7 +51,7 @@ Progress is tracked by checking items off below (`- [ ]` → `- [x] (Day N, YYYY
 
 ## Sorted sets & transactions
 - [x] ZADD / ZSCORE (Day 7, 2026-08-06)
-- [ ] ZRANGE
+- [x] ZRANGE (Day 7, 2026-08-06)
 - [ ] MULTI / EXEC / DISCARD
 - [ ] WATCH (optimistic locking)
 - [ ] AddressSanitizer / UBSan debug build target

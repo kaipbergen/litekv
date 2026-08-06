@@ -64,6 +64,7 @@ public:
     long long scard(const std::string& key);
     long long zadd(const std::string& key, const std::vector<std::pair<double, std::string>>& members);
     std::optional<double> zscore(const std::string& key, const std::string& member);
+    std::vector<std::string> zrange(const std::string& key, long long start, long long stop);
     void flush();
     void load_aof();
     size_t size() const;

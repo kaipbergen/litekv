@@ -705,6 +705,32 @@ std::optional<double> Storage::zscore(const std::string& key, const std::string&
     return mit->second;
 }
 
+std::vector<std::string> Storage::zrange(const std::string& key, long long start, long long stop) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    std::vector<std::string> result;
+    auto it = zsets_.find(key);
+    if (it == zsets_.end()) return result;
+
+    std::vector<std::pair<double, std::string>> sorted;
+    sorted.reserve(it->second.size());
+    for (const auto& [member, score] : it->second) sorted.emplace_back(score, member);
+    std::sort(sorted.begin(), sorted.end(), [](const auto& a, const auto& b) {
+        if (a.first != b.first) return a.first < b.first;
+        return a.second < b.second;
+    });
+
+    long long len = static_cast<long long>(sorted.size());
+    if (len == 0) return result;
+    if (start < 0) start = std::max(len + start, 0LL);
+    if (stop < 0) stop = len + stop;
+    if (stop >= len) stop = len - 1;
+    if (start > stop || start >= len) return result;
+
+    result.reserve(static_cast<size_t>(stop - start + 1));
+    for (long long i = start; i <= stop; i++) result.push_back(sorted[static_cast<size_t>(i)].second);
+    return result;
+}
+
 void Storage::flush() {
     std::lock_guard<std::mutex> lock(mutex_);
     data_.clear();

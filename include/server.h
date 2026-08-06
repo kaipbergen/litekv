@@ -11,6 +11,11 @@ namespace litekv {
 
 enum class Role { MASTER, REPLICA };
 
+struct ClientTxState {
+    bool in_multi = false;
+    std::vector<std::string> queued;
+};
+
 class Server {
 public:
     Server(int port, const std::string& aof_path = "litekv.aof",
@@ -39,6 +44,7 @@ private:
     void accept_loop();
     void handle_client(int client_fd);
     std::string process_command(std::string_view raw, bool from_master = false);
+    std::string dispatch_transactional(const std::string& msg, ClientTxState& tx);
     void propagate_to_replicas(const std::string& cmd);
     void send_full_resync(int fd);
     void connect_to_master();

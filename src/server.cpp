@@ -106,6 +106,7 @@ void Server::epoll_loop() {
     epoll_event events[MAX_EVENTS];
 
     std::unordered_map<int, std::string> client_buffers;
+    std::unordered_map<int, ClientTxState> client_tx;
 
     while (running_) {
         int n = epoll_wait(epfd, events, MAX_EVENTS, 100);
@@ -124,6 +125,7 @@ void Server::epoll_loop() {
                 cev.data.fd = client_fd;
                 epoll_ctl(epfd, EPOLL_CTL_ADD, client_fd, &cev);
                 client_buffers[client_fd] = "";
+                client_tx[client_fd] = ClientTxState{};
             } else {
                 char buf[4096];
                 ssize_t bytes = recv(fd, buf, sizeof(buf) - 1, 0);
@@ -131,6 +133,7 @@ void Server::epoll_loop() {
                     epoll_ctl(epfd, EPOLL_CTL_DEL, fd, nullptr);
                     close(fd);
                     client_buffers.erase(fd);
+                    client_tx.erase(fd);
                     std::lock_guard<std::mutex> lock(replicas_mutex_);
                     auto it = std::find(replicas_.begin(), replicas_.end(), fd);
                     if (it != replicas_.end()) replicas_.erase(it);
@@ -185,14 +188,14 @@ void Server::epoll_loop() {
 
                         std::string msg = cbuf.substr(0, pos);
                         cbuf.erase(0, pos);
-                        std::string response = process_command(msg);
+                        std::string response = dispatch_transactional(msg, client_tx[fd]);
                         send(fd, response.c_str(), response.size(), 0);
                     } else {
                         size_t end = cbuf.find("\r\n");
                         if (end == std::string::npos) break;
                         std::string msg = cbuf.substr(0, end + 2);
                         cbuf.erase(0, end + 2);
-                        std::string response = process_command(msg);
+                        std::string response = dispatch_transactional(msg, client_tx[fd]);
                         send(fd, response.c_str(), response.size(), 0);
                     }
                 }
@@ -216,8 +219,40 @@ void Server::accept_loop() {
     }
 }
 
+std::string Server::dispatch_transactional(const std::string& msg, ClientTxState& tx) {
+    Command cmd = Parser::parse(msg);
+
+    if (cmd.name == "MULTI") {
+        if (tx.in_multi) return Parser::error_response("MULTI calls can not be nested");
+        tx.in_multi = true;
+        tx.queued.clear();
+        return Parser::ok_response();
+    }
+    if (cmd.name == "DISCARD") {
+        if (!tx.in_multi) return Parser::error_response("DISCARD without MULTI");
+        tx.in_multi = false;
+        tx.queued.clear();
+        return Parser::ok_response();
+    }
+    if (cmd.name == "EXEC") {
+        if (!tx.in_multi) return Parser::error_response("EXEC without MULTI");
+        tx.in_multi = false;
+        std::string resp = "*" + std::to_string(tx.queued.size()) + "\r\n";
+        for (const auto& q : tx.queued) resp += process_command(q);
+        tx.queued.clear();
+        return resp;
+    }
+    if (tx.in_multi) {
+        if (cmd.name.empty()) return Parser::error_response("empty command");
+        tx.queued.push_back(msg);
+        return "+QUEUED\r\n";
+    }
+    return process_command(msg);
+}
+
 void Server::handle_client(int client_fd) {
     char buffer[4096];
+    ClientTxState tx;
     while (true) {
         memset(buffer, 0, sizeof(buffer));
         ssize_t bytes = recv(client_fd, buffer, sizeof(buffer) - 1, 0);
@@ -253,7 +288,7 @@ void Server::handle_client(int client_fd) {
             continue;
         }
 
-        std::string response = process_command(raw);
+        std::string response = dispatch_transactional(std::string(raw), tx);
         send(client_fd, response.c_str(), response.size(), 0);
     }
     close(client_fd);

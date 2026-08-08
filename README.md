@@ -94,6 +94,13 @@ cmake .. && make
 ./litekv --port 6380 --aof data.aof
 ```
 
+### Debug Build with AddressSanitizer / UBSan
+```bash
+mkdir build-debug && cd build-debug
+cmake .. -DCMAKE_BUILD_TYPE=Debug && make
+./litekv_tests
+```
+
 ### Master-Replica with Docker
 ```bash
 docker-compose up --build

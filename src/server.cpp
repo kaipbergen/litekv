@@ -27,6 +27,14 @@ Server::Server(int port, const std::string& aof_path, Role role,
     if (role_ == Role::MASTER) {
         storage_.load_aof();
     }
+    config_ = {
+        {"maxmemory", "0"},
+        {"appendonly", "yes"},
+        {"appendfsync", "everysec"},
+        {"save", ""},
+        {"timeout", "0"},
+        {"requirepass", ""},
+    };
 }
 
 static void set_nonblocking(int fd) {
@@ -943,6 +951,28 @@ std::string Server::process_command(std::string_view raw, bool from_master, int 
                     Parser::integer_response(subscriber_count_locked(client_fd));
         }
         return resp;
+    }
+    else if (cmd.name == "CONFIG") {
+        if (cmd.args.size() < 2) return Parser::error_response("wrong number of arguments for CONFIG");
+        std::string sub = cmd.args[0];
+        std::transform(sub.begin(), sub.end(), sub.begin(), ::toupper);
+        if (sub == "GET") {
+            std::lock_guard<std::mutex> lock(config_mutex_);
+            std::vector<std::optional<std::string>> flat;
+            for (const auto& [key, value] : config_) {
+                if (Storage::glob_match(cmd.args[1], key)) {
+                    flat.push_back(key);
+                    flat.push_back(value);
+                }
+            }
+            return Parser::array_response(flat);
+        } else if (sub == "SET") {
+            if (cmd.args.size() < 3) return Parser::error_response("wrong number of arguments for CONFIG SET");
+            std::lock_guard<std::mutex> lock(config_mutex_);
+            config_[cmd.args[1]] = cmd.args[2];
+            return Parser::ok_response();
+        }
+        return Parser::error_response("unknown CONFIG subcommand '" + cmd.args[0] + "'");
     }
 
     return Parser::error_response("unknown command '" + cmd.name + "'");

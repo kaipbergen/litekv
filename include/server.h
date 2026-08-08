@@ -52,6 +52,9 @@ private:
     std::vector<std::pair<std::string, int>> pattern_subs_;
     std::mutex pubsub_mutex_;
 
+    std::unordered_map<std::string, std::string> config_;
+    std::mutex config_mutex_;
+
     void accept_loop();
     void handle_client(int client_fd);
     std::string process_command(std::string_view raw, bool from_master = false, int client_fd = -1);

@@ -57,7 +57,7 @@ Progress is tracked by checking items off below (`- [ ]` → `- [x] (Day N, YYYY
 - [x] AddressSanitizer / UBSan debug build target (Day 8, 2026-08-08)
 
 ## Pub/Sub & config
-- [ ] SUBSCRIBE / PUBLISH
+- [x] SUBSCRIBE / PUBLISH (Day 8, 2026-08-08)
 - [ ] PSUBSCRIBE (pattern pub/sub)
 - [ ] CONFIG GET / SET
 - [ ] AUTH command + requirepass config

@@ -71,6 +71,7 @@ public:
     size_t size() const;
     std::vector<std::vector<std::string>> dump_commands();
     uint64_t version();
+    static bool glob_match(const std::string& pattern, const std::string& str);
 
 private:
     // LRU: list stores keys in order (front = most recent)
@@ -93,7 +94,6 @@ private:
     void append_aof(const std::string& line);
     void evict_lru();
     void touch(const std::string& key);
-    static bool glob_match(const std::string& pattern, const std::string& str);
 };
 
 } // namespace litekv

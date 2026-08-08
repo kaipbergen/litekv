@@ -48,15 +48,21 @@ private:
     std::atomic<long long> repl_offset_{0};
     std::unordered_map<int, long long> replica_acks_;
 
+    std::unordered_map<std::string, std::vector<int>> channel_subs_;
+    std::vector<std::pair<std::string, int>> pattern_subs_;
+    std::mutex pubsub_mutex_;
+
     void accept_loop();
     void handle_client(int client_fd);
-    std::string process_command(std::string_view raw, bool from_master = false);
-    std::string dispatch_transactional(const std::string& msg, ClientTxState& tx);
+    std::string process_command(std::string_view raw, bool from_master = false, int client_fd = -1);
+    std::string dispatch_transactional(const std::string& msg, ClientTxState& tx, int client_fd);
     void propagate_to_replicas(const std::string& cmd);
     void send_full_resync(int fd);
     void connect_to_master();
     int try_connect_to_master();
     void replica_loop(int master_fd);
+    long long subscriber_count_locked(int fd);
+    void unsubscribe_all(int fd);
 
 #ifdef __linux__
     void epoll_loop();

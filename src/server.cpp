@@ -134,6 +134,7 @@ void Server::epoll_loop() {
                     close(fd);
                     client_buffers.erase(fd);
                     client_tx.erase(fd);
+                    unsubscribe_all(fd);
                     std::lock_guard<std::mutex> lock(replicas_mutex_);
                     auto it = std::find(replicas_.begin(), replicas_.end(), fd);
                     if (it != replicas_.end()) replicas_.erase(it);
@@ -188,14 +189,14 @@ void Server::epoll_loop() {
 
                         std::string msg = cbuf.substr(0, pos);
                         cbuf.erase(0, pos);
-                        std::string response = dispatch_transactional(msg, client_tx[fd]);
+                        std::string response = dispatch_transactional(msg, client_tx[fd], fd);
                         send(fd, response.c_str(), response.size(), 0);
                     } else {
                         size_t end = cbuf.find("\r\n");
                         if (end == std::string::npos) break;
                         std::string msg = cbuf.substr(0, end + 2);
                         cbuf.erase(0, end + 2);
-                        std::string response = dispatch_transactional(msg, client_tx[fd]);
+                        std::string response = dispatch_transactional(msg, client_tx[fd], fd);
                         send(fd, response.c_str(), response.size(), 0);
                     }
                 }
@@ -219,7 +220,7 @@ void Server::accept_loop() {
     }
 }
 
-std::string Server::dispatch_transactional(const std::string& msg, ClientTxState& tx) {
+std::string Server::dispatch_transactional(const std::string& msg, ClientTxState& tx, int client_fd) {
     Command cmd = Parser::parse(msg);
 
     if (cmd.name == "MULTI") {
@@ -259,7 +260,7 @@ std::string Server::dispatch_transactional(const std::string& msg, ClientTxState
             return "*-1\r\n";
         }
         std::string resp = "*" + std::to_string(tx.queued.size()) + "\r\n";
-        for (const auto& q : tx.queued) resp += process_command(q);
+        for (const auto& q : tx.queued) resp += process_command(q, false, client_fd);
         tx.queued.clear();
         return resp;
     }
@@ -268,7 +269,7 @@ std::string Server::dispatch_transactional(const std::string& msg, ClientTxState
         tx.queued.push_back(msg);
         return "+QUEUED\r\n";
     }
-    return process_command(msg);
+    return process_command(msg, false, client_fd);
 }
 
 void Server::handle_client(int client_fd) {
@@ -278,6 +279,7 @@ void Server::handle_client(int client_fd) {
         memset(buffer, 0, sizeof(buffer));
         ssize_t bytes = recv(client_fd, buffer, sizeof(buffer) - 1, 0);
         if (bytes <= 0) {
+            unsubscribe_all(client_fd);
             std::lock_guard<std::mutex> lock(replicas_mutex_);
             auto it = std::find(replicas_.begin(), replicas_.end(), client_fd);
             if (it != replicas_.end()) replicas_.erase(it);
@@ -309,7 +311,7 @@ void Server::handle_client(int client_fd) {
             continue;
         }
 
-        std::string response = dispatch_transactional(std::string(raw), tx);
+        std::string response = dispatch_transactional(std::string(raw), tx, client_fd);
         send(client_fd, response.c_str(), response.size(), 0);
     }
     close(client_fd);
@@ -330,7 +332,33 @@ void Server::send_full_resync(int fd) {
     }
 }
 
-std::string Server::process_command(std::string_view raw, bool from_master) {
+// Caller must hold pubsub_mutex_.
+long long Server::subscriber_count_locked(int fd) {
+    long long count = 0;
+    for (const auto& [channel, subs] : channel_subs_) {
+        if (std::find(subs.begin(), subs.end(), fd) != subs.end()) count++;
+    }
+    for (const auto& [pattern, sub_fd] : pattern_subs_) {
+        if (sub_fd == fd) count++;
+    }
+    return count;
+}
+
+void Server::unsubscribe_all(int fd) {
+    std::lock_guard<std::mutex> lock(pubsub_mutex_);
+    for (auto it = channel_subs_.begin(); it != channel_subs_.end(); ) {
+        auto& subs = it->second;
+        subs.erase(std::remove(subs.begin(), subs.end(), fd), subs.end());
+        if (subs.empty()) it = channel_subs_.erase(it);
+        else ++it;
+    }
+    pattern_subs_.erase(
+        std::remove_if(pattern_subs_.begin(), pattern_subs_.end(),
+                        [fd](const auto& p) { return p.second == fd; }),
+        pattern_subs_.end());
+}
+
+std::string Server::process_command(std::string_view raw, bool from_master, int client_fd) {
     Command cmd = Parser::parse(raw);
 
     if (cmd.name.empty()) return Parser::error_response("empty command");
@@ -803,6 +831,77 @@ std::string Server::process_command(std::string_view raw, bool from_master) {
             acked = count_acked();
         }
         return Parser::integer_response(acked);
+    }
+    else if (cmd.name == "SUBSCRIBE") {
+        if (cmd.args.empty() || client_fd < 0) return Parser::error_response("wrong number of arguments for SUBSCRIBE");
+        std::string resp;
+        std::lock_guard<std::mutex> lock(pubsub_mutex_);
+        for (const auto& channel : cmd.args) {
+            auto& subs = channel_subs_[channel];
+            if (std::find(subs.begin(), subs.end(), client_fd) == subs.end()) {
+                subs.push_back(client_fd);
+            }
+            resp += "*3\r\n$9\r\nsubscribe\r\n" + Parser::bulk_response(channel) +
+                    Parser::integer_response(subscriber_count_locked(client_fd));
+        }
+        return resp;
+    }
+    else if (cmd.name == "UNSUBSCRIBE") {
+        if (client_fd < 0) return Parser::error_response("UNSUBSCRIBE not allowed in this context");
+        std::lock_guard<std::mutex> lock(pubsub_mutex_);
+        std::vector<std::string> channels = cmd.args;
+        if (channels.empty()) {
+            for (const auto& [channel, subs] : channel_subs_) {
+                if (std::find(subs.begin(), subs.end(), client_fd) != subs.end()) channels.push_back(channel);
+            }
+        }
+        if (channels.empty()) {
+            return "*3\r\n$11\r\nunsubscribe\r\n$-1\r\n:" +
+                   std::to_string(subscriber_count_locked(client_fd)) + "\r\n";
+        }
+        std::string resp;
+        for (const auto& channel : channels) {
+            auto it = channel_subs_.find(channel);
+            if (it != channel_subs_.end()) {
+                auto& subs = it->second;
+                subs.erase(std::remove(subs.begin(), subs.end(), client_fd), subs.end());
+                if (subs.empty()) channel_subs_.erase(it);
+            }
+            resp += "*3\r\n$11\r\nunsubscribe\r\n" + Parser::bulk_response(channel) +
+                    Parser::integer_response(subscriber_count_locked(client_fd));
+        }
+        return resp;
+    }
+    else if (cmd.name == "PUBLISH") {
+        if (cmd.args.size() < 2) return Parser::error_response("wrong number of arguments for PUBLISH");
+        const std::string& channel = cmd.args[0];
+        const std::string& message = cmd.args[1];
+        long long receivers = 0;
+        std::string payload = "*3\r\n$7\r\nmessage\r\n" + Parser::bulk_response(channel) +
+                               Parser::bulk_response(message);
+        {
+            std::lock_guard<std::mutex> lock(pubsub_mutex_);
+            auto it = channel_subs_.find(channel);
+            if (it != channel_subs_.end()) {
+                for (int sub_fd : it->second) {
+                    send(sub_fd, payload.c_str(), payload.size(), 0);
+                    receivers++;
+                }
+            }
+            for (const auto& [pattern, sub_fd] : pattern_subs_) {
+                if (Storage::glob_match(pattern, channel)) {
+                    std::string pmsg = "*4\r\n$8\r\npmessage\r\n" + Parser::bulk_response(pattern) +
+                                        Parser::bulk_response(channel) + Parser::bulk_response(message);
+                    send(sub_fd, pmsg.c_str(), pmsg.size(), 0);
+                    receivers++;
+                }
+            }
+        }
+        if (role_ == Role::MASTER) {
+            std::string raw_copy(raw);
+            propagate_to_replicas(raw_copy);
+        }
+        return Parser::integer_response(receivers);
     }
 
     return Parser::error_response("unknown command '" + cmd.name + "'");

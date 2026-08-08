@@ -58,7 +58,7 @@ Progress is tracked by checking items off below (`- [ ]` → `- [x] (Day N, YYYY
 
 ## Pub/Sub & config
 - [x] SUBSCRIBE / PUBLISH (Day 8, 2026-08-08)
-- [ ] PSUBSCRIBE (pattern pub/sub)
+- [x] PSUBSCRIBE (pattern pub/sub) (Day 8, 2026-08-08)
 - [ ] CONFIG GET / SET
 - [ ] AUTH command + requirepass config
 - [ ] Code coverage reporting (gcov/lcov)

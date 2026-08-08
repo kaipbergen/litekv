@@ -903,6 +903,47 @@ std::string Server::process_command(std::string_view raw, bool from_master, int 
         }
         return Parser::integer_response(receivers);
     }
+    else if (cmd.name == "PSUBSCRIBE") {
+        if (cmd.args.empty() || client_fd < 0) return Parser::error_response("wrong number of arguments for PSUBSCRIBE");
+        std::string resp;
+        std::lock_guard<std::mutex> lock(pubsub_mutex_);
+        for (const auto& pattern : cmd.args) {
+            bool already = false;
+            for (const auto& [p, fd] : pattern_subs_) {
+                if (p == pattern && fd == client_fd) { already = true; break; }
+            }
+            if (!already) pattern_subs_.emplace_back(pattern, client_fd);
+            resp += "*3\r\n$10\r\npsubscribe\r\n" + Parser::bulk_response(pattern) +
+                    Parser::integer_response(subscriber_count_locked(client_fd));
+        }
+        return resp;
+    }
+    else if (cmd.name == "PUNSUBSCRIBE") {
+        if (client_fd < 0) return Parser::error_response("PUNSUBSCRIBE not allowed in this context");
+        std::lock_guard<std::mutex> lock(pubsub_mutex_);
+        std::vector<std::string> patterns = cmd.args;
+        if (patterns.empty()) {
+            for (const auto& [p, fd] : pattern_subs_) {
+                if (fd == client_fd) patterns.push_back(p);
+            }
+        }
+        if (patterns.empty()) {
+            return "*3\r\n$12\r\npunsubscribe\r\n$-1\r\n:" +
+                   std::to_string(subscriber_count_locked(client_fd)) + "\r\n";
+        }
+        std::string resp;
+        for (const auto& pattern : patterns) {
+            pattern_subs_.erase(
+                std::remove_if(pattern_subs_.begin(), pattern_subs_.end(),
+                                [&](const auto& entry) {
+                                    return entry.first == pattern && entry.second == client_fd;
+                                }),
+                pattern_subs_.end());
+            resp += "*3\r\n$12\r\npunsubscribe\r\n" + Parser::bulk_response(pattern) +
+                    Parser::integer_response(subscriber_count_locked(client_fd));
+        }
+        return resp;
+    }
 
     return Parser::error_response("unknown command '" + cmd.name + "'");
 }

@@ -232,11 +232,32 @@ std::string Server::dispatch_transactional(const std::string& msg, ClientTxState
         if (!tx.in_multi) return Parser::error_response("DISCARD without MULTI");
         tx.in_multi = false;
         tx.queued.clear();
+        tx.watched_keys.clear();
+        tx.watch_version.reset();
+        return Parser::ok_response();
+    }
+    if (cmd.name == "WATCH") {
+        if (tx.in_multi) return Parser::error_response("WATCH inside MULTI is not allowed");
+        if (cmd.args.empty()) return Parser::error_response("wrong number of arguments for WATCH");
+        if (!tx.watch_version.has_value()) tx.watch_version = storage_.version();
+        for (const auto& key : cmd.args) tx.watched_keys.insert(key);
+        return Parser::ok_response();
+    }
+    if (cmd.name == "UNWATCH") {
+        tx.watched_keys.clear();
+        tx.watch_version.reset();
         return Parser::ok_response();
     }
     if (cmd.name == "EXEC") {
         if (!tx.in_multi) return Parser::error_response("EXEC without MULTI");
         tx.in_multi = false;
+        bool aborted = tx.watch_version.has_value() && storage_.version() != tx.watch_version.value();
+        tx.watched_keys.clear();
+        tx.watch_version.reset();
+        if (aborted) {
+            tx.queued.clear();
+            return "*-1\r\n";
+        }
         std::string resp = "*" + std::to_string(tx.queued.size()) + "\r\n";
         for (const auto& q : tx.queued) resp += process_command(q);
         tx.queued.clear();

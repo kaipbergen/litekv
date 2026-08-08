@@ -23,10 +23,16 @@ bool Storage::is_expired(const Entry& entry) const {
 }
 
 void Storage::append_aof(const std::string& line) {
+    version_++;
     if (aof_file_.is_open()) {
         aof_file_ << line << "\n";
         aof_file_.flush();
     }
+}
+
+uint64_t Storage::version() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return version_;
 }
 
 void Storage::touch(const std::string& key) {

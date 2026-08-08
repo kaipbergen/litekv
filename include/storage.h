@@ -10,6 +10,7 @@
 #include <chrono>
 #include <fstream>
 #include <vector>
+#include <cstdint>
 
 namespace litekv {
 
@@ -69,6 +70,7 @@ public:
     void load_aof();
     size_t size() const;
     std::vector<std::vector<std::string>> dump_commands();
+    uint64_t version();
 
 private:
     // LRU: list stores keys in order (front = most recent)
@@ -85,6 +87,7 @@ private:
     std::string aof_path_;
     std::ofstream aof_file_;
     size_t max_keys_;
+    uint64_t version_ = 0;
 
     bool is_expired(const Entry& entry) const;
     void append_aof(const std::string& line);

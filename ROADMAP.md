@@ -53,7 +53,7 @@ Progress is tracked by checking items off below (`- [ ]` → `- [x] (Day N, YYYY
 - [x] ZADD / ZSCORE (Day 7, 2026-08-06)
 - [x] ZRANGE (Day 7, 2026-08-06)
 - [x] MULTI / EXEC / DISCARD (Day 7, 2026-08-06)
-- [ ] WATCH (optimistic locking)
+- [x] WATCH (optimistic locking) (Day 8, 2026-08-08)
 - [ ] AddressSanitizer / UBSan debug build target
 
 ## Pub/Sub & config

@@ -7,6 +7,9 @@
 #include <vector>
 #include <mutex>
 #include <unordered_map>
+#include <unordered_set>
+#include <optional>
+#include <cstdint>
 namespace litekv {
 
 enum class Role { MASTER, REPLICA };
@@ -14,6 +17,10 @@ enum class Role { MASTER, REPLICA };
 struct ClientTxState {
     bool in_multi = false;
     std::vector<std::string> queued;
+    std::unordered_set<std::string> watched_keys;
+    // Set to the storage version at the first WATCH call; if the version drifts
+    // before EXEC, the whole transaction aborts (coarse-grained, not per-key).
+    std::optional<uint64_t> watch_version;
 };
 
 class Server {

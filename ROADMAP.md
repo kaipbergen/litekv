@@ -61,7 +61,7 @@ Progress is tracked by checking items off below (`- [ ]` → `- [x] (Day N, YYYY
 - [x] PSUBSCRIBE (pattern pub/sub) (Day 8, 2026-08-08)
 - [x] CONFIG GET / SET (Day 8, 2026-08-08)
 - [x] AUTH command + requirepass config (Day 9, 2026-08-10)
-- [ ] Code coverage reporting (gcov/lcov)
+- [x] Code coverage reporting (gcov/lcov) (Day 9, 2026-08-10)
 - [ ] SELECT (multiple logical DBs)
 - [x] COPY key (Day 9, 2026-08-10)
 - [x] RANDOMKEY (Day 9, 2026-08-10)

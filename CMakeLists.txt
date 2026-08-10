@@ -43,3 +43,17 @@ add_executable(litekv_tests
 target_include_directories(litekv_tests PRIVATE tests)
 
 add_test(NAME litekv_tests COMMAND litekv_tests)
+
+option(ENABLE_COVERAGE "Build litekv_tests with gcov/lcov code coverage instrumentation" OFF)
+if(ENABLE_COVERAGE)
+    target_compile_options(litekv_tests PRIVATE --coverage -O0 -g)
+    target_link_options(litekv_tests PRIVATE --coverage)
+
+    add_custom_target(coverage
+        COMMAND $<TARGET_FILE:litekv_tests>
+        COMMAND bash ${CMAKE_SOURCE_DIR}/scripts/coverage.sh ${CMAKE_BINARY_DIR} ${CMAKE_SOURCE_DIR}
+        WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+        DEPENDS litekv_tests
+        COMMENT "Running tests and generating code coverage report"
+    )
+endif()

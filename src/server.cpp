@@ -996,6 +996,17 @@ std::string Server::process_command(std::string_view raw, bool from_master, int 
         }
         return resp;
     }
+    else if (cmd.name == "OBJECT") {
+        if (cmd.args.size() < 2) return Parser::error_response("wrong number of arguments for OBJECT");
+        std::string sub = cmd.args[0];
+        std::transform(sub.begin(), sub.end(), sub.begin(), ::toupper);
+        if (sub == "ENCODING") {
+            auto enc = storage_.object_encoding(cmd.args[1]);
+            if (!enc.has_value()) return Parser::error_response("no such key");
+            return Parser::bulk_response(enc.value());
+        }
+        return Parser::error_response("unknown OBJECT subcommand '" + cmd.args[0] + "'");
+    }
     else if (cmd.name == "CONFIG") {
         if (cmd.args.size() < 2) return Parser::error_response("wrong number of arguments for CONFIG");
         std::string sub = cmd.args[0];

@@ -460,6 +460,40 @@ std::optional<std::string> Storage::randomkey() {
     return live_keys[dist(rng)];
 }
 
+std::optional<std::string> Storage::object_encoding(const std::string& key) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (hashes_.count(key)) return std::string("hashtable");
+    if (lists_.count(key)) return std::string("quicklist");
+
+    auto sit = sets_.find(key);
+    if (sit != sets_.end()) {
+        bool all_int = true;
+        for (const auto& m : sit->second) {
+            try {
+                size_t pos;
+                std::stoll(m, &pos);
+                if (pos != m.size()) { all_int = false; break; }
+            } catch (...) { all_int = false; break; }
+        }
+        return all_int ? std::string("intset") : std::string("hashtable");
+    }
+
+    if (zsets_.count(key)) return std::string("skiplist");
+
+    auto dit = data_.find(key);
+    if (dit != data_.end() && !is_expired(dit->second.first)) {
+        const std::string& val = dit->second.first.value;
+        try {
+            size_t pos;
+            std::stoll(val, &pos);
+            if (!val.empty() && pos == val.size()) return std::string("int");
+        } catch (...) {}
+        return val.size() <= 44 ? std::string("embstr") : std::string("raw");
+    }
+
+    return std::nullopt;
+}
+
 std::pair<size_t, std::vector<std::string>> Storage::scan(size_t cursor, const std::string& pattern,
                                                             size_t count) {
     std::lock_guard<std::mutex> lock(mutex_);

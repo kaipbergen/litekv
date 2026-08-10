@@ -65,7 +65,7 @@ Progress is tracked by checking items off below (`- [ ]` → `- [x] (Day N, YYYY
 - [ ] SELECT (multiple logical DBs)
 - [x] COPY key (Day 9, 2026-08-10)
 - [x] RANDOMKEY (Day 9, 2026-08-10)
-- [ ] OBJECT ENCODING introspection
+- [x] OBJECT ENCODING introspection (Day 9, 2026-08-10)
 
 ## Persistence
 - [ ] SAVE (point-in-time RDB-like snapshot)

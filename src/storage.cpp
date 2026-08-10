@@ -759,6 +759,75 @@ std::vector<std::string> Storage::zrange(const std::string& key, long long start
     return result;
 }
 
+bool Storage::copy(const std::string& src, const std::string& dst, bool replace) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (src == dst) return false;
+
+    auto sit = data_.find(src);
+    bool src_is_string = sit != data_.end() && !is_expired(sit->second.first);
+    Entry src_entry;
+    if (src_is_string) src_entry = sit->second.first;
+    bool src_is_hash = !src_is_string && hashes_.count(src) > 0;
+    bool src_is_list = !src_is_string && !src_is_hash && lists_.count(src) > 0;
+    bool src_is_set = !src_is_string && !src_is_hash && !src_is_list && sets_.count(src) > 0;
+    bool src_is_zset = !src_is_string && !src_is_hash && !src_is_list && !src_is_set && zsets_.count(src) > 0;
+    if (!src_is_string && !src_is_hash && !src_is_list && !src_is_set && !src_is_zset) return false;
+
+    bool dst_exists = false;
+    auto ddata = data_.find(dst);
+    if (ddata != data_.end() && !is_expired(ddata->second.first)) dst_exists = true;
+    if (hashes_.count(dst)) dst_exists = true;
+    if (lists_.count(dst)) dst_exists = true;
+    if (sets_.count(dst)) dst_exists = true;
+    if (zsets_.count(dst)) dst_exists = true;
+    if (dst_exists && !replace) return false;
+
+    if (dst_exists) {
+        auto dit = data_.find(dst);
+        if (dit != data_.end()) {
+            lru_list_.erase(dit->second.second);
+            data_.erase(dit);
+        }
+        hashes_.erase(dst);
+        lists_.erase(dst);
+        sets_.erase(dst);
+        zsets_.erase(dst);
+        append_aof("DEL " + dst);
+    }
+
+    if (src_is_string) {
+        evict_lru();
+        lru_list_.push_front(dst);
+        data_[dst] = {src_entry, lru_list_.begin()};
+        if (src_entry.expires_at.has_value()) {
+            auto remaining = std::chrono::duration_cast<std::chrono::seconds>(
+                src_entry.expires_at.value() - std::chrono::steady_clock::now()).count();
+            append_aof("SET " + dst + " " + src_entry.value + " EX " + std::to_string(remaining));
+        } else {
+            append_aof("SET " + dst + " " + src_entry.value);
+        }
+    } else if (src_is_hash) {
+        hashes_[dst] = hashes_[src];
+        for (const auto& [f, v] : hashes_[dst]) append_aof("HSET " + dst + " " + f + " " + v);
+    } else if (src_is_list) {
+        lists_[dst] = lists_[src];
+        std::string line = "RPUSH " + dst;
+        for (const auto& v : lists_[dst]) line += " " + v;
+        append_aof(line);
+    } else if (src_is_set) {
+        sets_[dst] = sets_[src];
+        std::string line = "SADD " + dst;
+        for (const auto& m : sets_[dst]) line += " " + m;
+        append_aof(line);
+    } else if (src_is_zset) {
+        zsets_[dst] = zsets_[src];
+        std::string line = "ZADD " + dst;
+        for (const auto& [m, sc] : zsets_[dst]) line += " " + format_double(sc) + " " + m;
+        append_aof(line);
+    }
+    return true;
+}
+
 void Storage::flush() {
     std::lock_guard<std::mutex> lock(mutex_);
     data_.clear();

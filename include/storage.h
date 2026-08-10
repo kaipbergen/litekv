@@ -29,6 +29,7 @@ public:
     std::optional<std::string> getset(const std::string& key, const std::string& value);
     bool setnx(const std::string& key, const std::string& value);
     bool rename(const std::string& key, const std::string& newkey);
+    bool copy(const std::string& key, const std::string& newkey, bool replace);
     bool del(const std::string& key);
     std::optional<long long> incrby(const std::string& key, long long delta);
     long long append(const std::string& key, const std::string& value);

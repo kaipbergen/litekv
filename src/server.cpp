@@ -399,7 +399,7 @@ std::string Server::process_command(std::string_view raw, bool from_master, int 
         if (cmd.name == "SET" || cmd.name == "DEL" || cmd.name == "FLUSHALL" ||
             cmd.name == "INCR" || cmd.name == "INCRBY" || cmd.name == "DECRBY" ||
             cmd.name == "APPEND" || cmd.name == "MSET" || cmd.name == "GETSET" ||
-            cmd.name == "SETNX" || cmd.name == "RENAME" ||
+            cmd.name == "SETNX" || cmd.name == "RENAME" || cmd.name == "COPY" ||
             cmd.name == "EXPIRE" || cmd.name == "PERSIST" || cmd.name == "PEXPIRE" ||
             cmd.name == "HSET" || cmd.name == "HDEL" ||
             cmd.name == "LPUSH" || cmd.name == "RPUSH" ||
@@ -520,6 +520,21 @@ std::string Server::process_command(std::string_view raw, bool from_master, int 
             propagate_to_replicas(raw_copy);
         }
         return Parser::ok_response();
+    }
+    else if (cmd.name == "COPY") {
+        if (cmd.args.size() < 2) return Parser::error_response("wrong number of arguments for COPY");
+        bool replace = false;
+        for (size_t i = 2; i < cmd.args.size(); i++) {
+            std::string opt = cmd.args[i];
+            std::transform(opt.begin(), opt.end(), opt.begin(), ::toupper);
+            if (opt == "REPLACE") replace = true;
+        }
+        bool copied = storage_.copy(cmd.args[0], cmd.args[1], replace);
+        if (copied && role_ == Role::MASTER) {
+            std::string raw_copy(raw);
+            propagate_to_replicas(raw_copy);
+        }
+        return Parser::integer_response(copied ? 1 : 0);
     }
     else if (cmd.name == "TYPE") {
         if (cmd.args.size() < 1) return Parser::error_response("wrong number of arguments for TYPE");

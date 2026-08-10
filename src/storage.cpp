@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <random>
 
 namespace litekv {
 
@@ -436,6 +437,27 @@ std::vector<std::string> Storage::keys(const std::string& pattern) {
         if (glob_match(pattern, key)) result.push_back(key);
     }
     return result;
+}
+
+std::optional<std::string> Storage::randomkey() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    std::vector<std::string> live_keys;
+    auto now = std::chrono::steady_clock::now();
+    for (const auto& [key, pair] : data_) {
+        const Entry& entry = pair.first;
+        if (entry.expires_at.has_value() && now > entry.expires_at.value()) continue;
+        live_keys.push_back(key);
+    }
+    for (const auto& [key, fields] : hashes_) live_keys.push_back(key);
+    for (const auto& [key, lst] : lists_) live_keys.push_back(key);
+    for (const auto& [key, set] : sets_) live_keys.push_back(key);
+    for (const auto& [key, zset] : zsets_) live_keys.push_back(key);
+
+    if (live_keys.empty()) return std::nullopt;
+
+    static thread_local std::mt19937_64 rng(std::random_device{}());
+    std::uniform_int_distribution<size_t> dist(0, live_keys.size() - 1);
+    return live_keys[dist(rng)];
 }
 
 std::pair<size_t, std::vector<std::string>> Storage::scan(size_t cursor, const std::string& pattern,

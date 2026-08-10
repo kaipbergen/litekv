@@ -64,7 +64,7 @@ Progress is tracked by checking items off below (`- [ ]` → `- [x] (Day N, YYYY
 - [ ] Code coverage reporting (gcov/lcov)
 - [ ] SELECT (multiple logical DBs)
 - [ ] COPY key
-- [ ] RANDOMKEY
+- [x] RANDOMKEY (Day 9, 2026-08-10)
 - [ ] OBJECT ENCODING introspection
 
 ## Persistence

@@ -778,6 +778,11 @@ std::string Server::process_command(std::string_view raw, bool from_master, int 
         std::vector<std::optional<std::string>> values(matched.begin(), matched.end());
         return Parser::array_response(values);
     }
+    else if (cmd.name == "RANDOMKEY") {
+        auto key = storage_.randomkey();
+        if (!key.has_value()) return Parser::null_response();
+        return Parser::bulk_response(key.value());
+    }
     else if (cmd.name == "SCAN") {
         if (cmd.args.size() < 1) return Parser::error_response("wrong number of arguments for SCAN");
         size_t cursor;

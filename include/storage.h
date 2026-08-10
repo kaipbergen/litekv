@@ -42,6 +42,7 @@ public:
     bool pexpire(const std::string& key, long long ttl_ms);
     long long pttl(const std::string& key);
     std::vector<std::string> keys(const std::string& pattern);
+    std::optional<std::string> randomkey();
     std::pair<size_t, std::vector<std::string>> scan(size_t cursor, const std::string& pattern,
                                                        size_t count);
     bool hset(const std::string& key, const std::string& field, const std::string& value);

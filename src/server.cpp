@@ -231,6 +231,30 @@ void Server::accept_loop() {
 std::string Server::dispatch_transactional(const std::string& msg, ClientTxState& tx, int client_fd) {
     Command cmd = Parser::parse(msg);
 
+    if (cmd.name == "AUTH") {
+        std::string requirepass;
+        {
+            std::lock_guard<std::mutex> lock(config_mutex_);
+            requirepass = config_["requirepass"];
+        }
+        if (requirepass.empty()) {
+            return Parser::error_response("Client sent AUTH, but no password is set. Did you mean AUTH <username> <password>?");
+        }
+        if (cmd.args.size() != 1) return Parser::error_response("wrong number of arguments for AUTH");
+        if (cmd.args[0] != requirepass) {
+            tx.authenticated = false;
+            return Parser::error_response("WRONGPASS invalid username-password pair or user is disabled.");
+        }
+        tx.authenticated = true;
+        return Parser::ok_response();
+    }
+    {
+        std::lock_guard<std::mutex> lock(config_mutex_);
+        if (!config_["requirepass"].empty() && !tx.authenticated) {
+            return Parser::error_response("NOAUTH Authentication required.");
+        }
+    }
+
     if (cmd.name == "MULTI") {
         if (tx.in_multi) return Parser::error_response("MULTI calls can not be nested");
         tx.in_multi = true;

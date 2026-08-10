@@ -21,6 +21,7 @@ struct ClientTxState {
     // Set to the storage version at the first WATCH call; if the version drifts
     // before EXEC, the whole transaction aborts (coarse-grained, not per-key).
     std::optional<uint64_t> watch_version;
+    bool authenticated = false;
 };
 
 class Server {

@@ -5,6 +5,7 @@
 #include <thread>
 #include <atomic>
 #include <vector>
+#include <memory>
 #include <mutex>
 #include <unordered_map>
 #include <unordered_set>
@@ -34,15 +35,21 @@ public:
     void stop();
 
 private:
+    static constexpr int kNumDbs = 16;
+
     int port_;
     int server_fd_;
     int master_fd_ = -1;
     std::atomic<bool> running_;
-    Storage storage_;
+    std::vector<std::unique_ptr<Storage>> dbs_;
     Role role_;
     std::string master_host_;
     int master_port_;
-    
+
+    std::unordered_map<int, int> client_db_;
+    std::mutex client_db_mutex_;
+    int repl_current_db_ = 0;
+    int last_propagated_db_ = -1;
 
     std::vector<int> replicas_;
     std::mutex replicas_mutex_;
@@ -60,13 +67,16 @@ private:
     void handle_client(int client_fd);
     std::string process_command(std::string_view raw, bool from_master = false, int client_fd = -1);
     std::string dispatch_transactional(const std::string& msg, ClientTxState& tx, int client_fd);
-    void propagate_to_replicas(const std::string& cmd);
+    void propagate_to_replicas(const std::string& cmd, int db_idx);
     void send_full_resync(int fd);
     void connect_to_master();
     int try_connect_to_master();
     void replica_loop(int master_fd);
     long long subscriber_count_locked(int fd);
     void unsubscribe_all(int fd);
+    int get_client_db(int client_fd);
+    void set_client_db(int client_fd, int db_idx);
+    void remove_client_db(int client_fd);
 
 #ifdef __linux__
     void epoll_loop();

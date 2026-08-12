@@ -22,10 +22,14 @@ namespace litekv {
 Server::Server(int port, const std::string& aof_path, Role role,
                const std::string& master_host, int master_port)
     : port_(port), server_fd_(-1), running_(false),
-      storage_(aof_path), role_(role),
+      role_(role),
       master_host_(master_host), master_port_(master_port) {
+    for (int i = 0; i < kNumDbs; i++) {
+        std::string path = (i == 0) ? aof_path : aof_path + "." + std::to_string(i);
+        dbs_.push_back(std::make_unique<Storage>(path));
+    }
     if (role_ == Role::MASTER) {
-        storage_.load_aof();
+        for (auto& db : dbs_) db->load_aof();
     }
     config_ = {
         {"maxmemory", "0"},
@@ -98,6 +102,22 @@ void Server::stop() {
     close(server_fd_);
 }
 
+int Server::get_client_db(int client_fd) {
+    std::lock_guard<std::mutex> lock(client_db_mutex_);
+    auto it = client_db_.find(client_fd);
+    return it != client_db_.end() ? it->second : 0;
+}
+
+void Server::set_client_db(int client_fd, int db_idx) {
+    std::lock_guard<std::mutex> lock(client_db_mutex_);
+    client_db_[client_fd] = db_idx;
+}
+
+void Server::remove_client_db(int client_fd) {
+    std::lock_guard<std::mutex> lock(client_db_mutex_);
+    client_db_.erase(client_fd);
+}
+
 #ifdef __linux__
 void Server::epoll_loop() {
     set_nonblocking(server_fd_);
@@ -134,6 +154,7 @@ void Server::epoll_loop() {
                 epoll_ctl(epfd, EPOLL_CTL_ADD, client_fd, &cev);
                 client_buffers[client_fd] = "";
                 client_tx[client_fd] = ClientTxState{};
+                set_client_db(client_fd, 0);
             } else {
                 char buf[4096];
                 ssize_t bytes = recv(fd, buf, sizeof(buf) - 1, 0);
@@ -142,6 +163,7 @@ void Server::epoll_loop() {
                     close(fd);
                     client_buffers.erase(fd);
                     client_tx.erase(fd);
+                    remove_client_db(fd);
                     unsubscribe_all(fd);
                     std::lock_guard<std::mutex> lock(replicas_mutex_);
                     auto it = std::find(replicas_.begin(), replicas_.end(), fd);
@@ -168,9 +190,12 @@ void Server::epoll_loop() {
                             }
                             break;
                         }
-                        std::lock_guard<std::mutex> lock(replicas_mutex_);
-                        if (std::find(replicas_.begin(), replicas_.end(), fd) == replicas_.end()) {
-                            replicas_.push_back(fd);
+                        {
+                            std::lock_guard<std::mutex> lock(replicas_mutex_);
+                            if (std::find(replicas_.begin(), replicas_.end(), fd) == replicas_.end()) {
+                                replicas_.push_back(fd);
+                            }
+                            last_propagated_db_ = -1;
                         }
                         std::string resp = "+OK\r\n";
                         send(fd, resp.c_str(), resp.size(), 0);
@@ -230,6 +255,7 @@ void Server::accept_loop() {
 
 std::string Server::dispatch_transactional(const std::string& msg, ClientTxState& tx, int client_fd) {
     Command cmd = Parser::parse(msg);
+    Storage& storage_ = *dbs_[get_client_db(client_fd)];
 
     if (cmd.name == "AUTH") {
         std::string requirepass;
@@ -307,11 +333,13 @@ std::string Server::dispatch_transactional(const std::string& msg, ClientTxState
 void Server::handle_client(int client_fd) {
     char buffer[4096];
     ClientTxState tx;
+    set_client_db(client_fd, 0);
     while (true) {
         memset(buffer, 0, sizeof(buffer));
         ssize_t bytes = recv(client_fd, buffer, sizeof(buffer) - 1, 0);
         if (bytes <= 0) {
             unsubscribe_all(client_fd);
+            remove_client_db(client_fd);
             std::lock_guard<std::mutex> lock(replicas_mutex_);
             auto it = std::find(replicas_.begin(), replicas_.end(), client_fd);
             if (it != replicas_.end()) replicas_.erase(it);
@@ -333,9 +361,12 @@ void Server::handle_client(int client_fd) {
                 }
                 continue;
             }
-            std::lock_guard<std::mutex> lock(replicas_mutex_);
-            if (std::find(replicas_.begin(), replicas_.end(), client_fd) == replicas_.end()) {
-                replicas_.push_back(client_fd);
+            {
+                std::lock_guard<std::mutex> lock(replicas_mutex_);
+                if (std::find(replicas_.begin(), replicas_.end(), client_fd) == replicas_.end()) {
+                    replicas_.push_back(client_fd);
+                }
+                last_propagated_db_ = -1;
             }
             std::string resp = "+OK\r\n";
             send(client_fd, resp.c_str(), resp.size(), 0);
@@ -349,18 +380,30 @@ void Server::handle_client(int client_fd) {
     close(client_fd);
 }
 
-void Server::propagate_to_replicas(const std::string& cmd) {
-    repl_offset_ += static_cast<long long>(cmd.size());
+void Server::propagate_to_replicas(const std::string& cmd, int db_idx) {
     std::lock_guard<std::mutex> lock(replicas_mutex_);
+    if (db_idx != last_propagated_db_) {
+        std::string sel = Parser::encode_command({"SELECT", std::to_string(db_idx)});
+        repl_offset_ += static_cast<long long>(sel.size());
+        for (int fd : replicas_) send(fd, sel.c_str(), sel.size(), 0);
+        last_propagated_db_ = db_idx;
+    }
+    repl_offset_ += static_cast<long long>(cmd.size());
     for (int fd : replicas_) {
         send(fd, cmd.c_str(), cmd.size(), 0);
     }
 }
 
 void Server::send_full_resync(int fd) {
-    for (const auto& cmd : storage_.dump_commands()) {
-        std::string encoded = Parser::encode_command(cmd);
-        send(fd, encoded.c_str(), encoded.size(), 0);
+    for (int i = 0; i < kNumDbs; i++) {
+        auto commands = dbs_[i]->dump_commands();
+        if (commands.empty()) continue;
+        std::string sel = Parser::encode_command({"SELECT", std::to_string(i)});
+        send(fd, sel.c_str(), sel.size(), 0);
+        for (const auto& cmd : commands) {
+            std::string encoded = Parser::encode_command(cmd);
+            send(fd, encoded.c_str(), encoded.size(), 0);
+        }
     }
 }
 
@@ -395,6 +438,29 @@ std::string Server::process_command(std::string_view raw, bool from_master, int 
 
     if (cmd.name.empty()) return Parser::error_response("empty command");
 
+    int db_idx = from_master ? repl_current_db_ : get_client_db(client_fd);
+    if (db_idx < 0 || db_idx >= kNumDbs) db_idx = 0;
+    Storage& storage_ = *dbs_[db_idx];
+
+    if (cmd.name == "SELECT") {
+        if (cmd.args.size() < 1) return Parser::error_response("wrong number of arguments for SELECT");
+        int idx;
+        try {
+            size_t pos;
+            idx = std::stoi(cmd.args[0], &pos);
+            if (pos != cmd.args[0].size()) return Parser::error_response("value is not an integer or out of range");
+        } catch (...) {
+            return Parser::error_response("value is not an integer or out of range");
+        }
+        if (idx < 0 || idx >= kNumDbs) return Parser::error_response("DB index is out of range");
+        if (from_master) {
+            repl_current_db_ = idx;
+        } else if (client_fd >= 0) {
+            set_client_db(client_fd, idx);
+        }
+        return Parser::ok_response();
+    }
+
     if (role_ == Role::REPLICA && !from_master) {
         if (cmd.name == "SET" || cmd.name == "DEL" || cmd.name == "FLUSHALL" ||
             cmd.name == "INCR" || cmd.name == "INCRBY" || cmd.name == "DECRBY" ||
@@ -421,7 +487,7 @@ std::string Server::process_command(std::string_view raw, bool from_master, int 
         storage_.set(cmd.args[0], cmd.args[1], ttl);
         if (role_ == Role::MASTER) {
             std::string raw_copy(raw);
-            propagate_to_replicas(raw_copy);
+            propagate_to_replicas(raw_copy, db_idx);
         }
         return Parser::ok_response();
     }
@@ -436,7 +502,7 @@ std::string Server::process_command(std::string_view raw, bool from_master, int 
         bool deleted = storage_.del(cmd.args[0]);
         if (role_ == Role::MASTER) {
             std::string raw_copy(raw);
-            propagate_to_replicas(raw_copy);
+            propagate_to_replicas(raw_copy, db_idx);
         }
         return Parser::integer_response(deleted ? 1 : 0);
     }
@@ -446,7 +512,7 @@ std::string Server::process_command(std::string_view raw, bool from_master, int 
         if (!result.has_value()) return Parser::error_response("value is not an integer or out of range");
         if (role_ == Role::MASTER) {
             std::string raw_copy(raw);
-            propagate_to_replicas(raw_copy);
+            propagate_to_replicas(raw_copy, db_idx);
         }
         return Parser::integer_response(result.value());
     }
@@ -465,7 +531,7 @@ std::string Server::process_command(std::string_view raw, bool from_master, int 
         if (!result.has_value()) return Parser::error_response("value is not an integer or out of range");
         if (role_ == Role::MASTER) {
             std::string raw_copy(raw);
-            propagate_to_replicas(raw_copy);
+            propagate_to_replicas(raw_copy, db_idx);
         }
         return Parser::integer_response(result.value());
     }
@@ -474,7 +540,7 @@ std::string Server::process_command(std::string_view raw, bool from_master, int 
         long long new_len = storage_.append(cmd.args[0], cmd.args[1]);
         if (role_ == Role::MASTER) {
             std::string raw_copy(raw);
-            propagate_to_replicas(raw_copy);
+            propagate_to_replicas(raw_copy, db_idx);
         }
         return Parser::integer_response(new_len);
     }
@@ -488,7 +554,7 @@ std::string Server::process_command(std::string_view raw, bool from_master, int 
         storage_.mset(pairs);
         if (role_ == Role::MASTER) {
             std::string raw_copy(raw);
-            propagate_to_replicas(raw_copy);
+            propagate_to_replicas(raw_copy, db_idx);
         }
         return Parser::ok_response();
     }
@@ -497,7 +563,7 @@ std::string Server::process_command(std::string_view raw, bool from_master, int 
         auto old_val = storage_.getset(cmd.args[0], cmd.args[1]);
         if (role_ == Role::MASTER) {
             std::string raw_copy(raw);
-            propagate_to_replicas(raw_copy);
+            propagate_to_replicas(raw_copy, db_idx);
         }
         if (!old_val.has_value()) return Parser::null_response();
         return Parser::bulk_response(old_val.value());
@@ -507,7 +573,7 @@ std::string Server::process_command(std::string_view raw, bool from_master, int 
         bool set = storage_.setnx(cmd.args[0], cmd.args[1]);
         if (set && role_ == Role::MASTER) {
             std::string raw_copy(raw);
-            propagate_to_replicas(raw_copy);
+            propagate_to_replicas(raw_copy, db_idx);
         }
         return Parser::integer_response(set ? 1 : 0);
     }
@@ -517,7 +583,7 @@ std::string Server::process_command(std::string_view raw, bool from_master, int 
         if (!renamed) return Parser::error_response("no such key");
         if (role_ == Role::MASTER) {
             std::string raw_copy(raw);
-            propagate_to_replicas(raw_copy);
+            propagate_to_replicas(raw_copy, db_idx);
         }
         return Parser::ok_response();
     }
@@ -532,7 +598,7 @@ std::string Server::process_command(std::string_view raw, bool from_master, int 
         bool copied = storage_.copy(cmd.args[0], cmd.args[1], replace);
         if (copied && role_ == Role::MASTER) {
             std::string raw_copy(raw);
-            propagate_to_replicas(raw_copy);
+            propagate_to_replicas(raw_copy, db_idx);
         }
         return Parser::integer_response(copied ? 1 : 0);
     }
@@ -560,7 +626,7 @@ std::string Server::process_command(std::string_view raw, bool from_master, int 
         }
         if (role_ == Role::MASTER) {
             std::string raw_copy(raw);
-            propagate_to_replicas(raw_copy);
+            propagate_to_replicas(raw_copy, db_idx);
         }
         return Parser::integer_response(added);
     }
@@ -576,7 +642,7 @@ std::string Server::process_command(std::string_view raw, bool from_master, int 
         long long removed = storage_.hdel(cmd.args[0], fields);
         if (removed > 0 && role_ == Role::MASTER) {
             std::string raw_copy(raw);
-            propagate_to_replicas(raw_copy);
+            propagate_to_replicas(raw_copy, db_idx);
         }
         return Parser::integer_response(removed);
     }
@@ -619,7 +685,7 @@ std::string Server::process_command(std::string_view raw, bool from_master, int 
             : storage_.rpush(cmd.args[0], values);
         if (role_ == Role::MASTER) {
             std::string raw_copy(raw);
-            propagate_to_replicas(raw_copy);
+            propagate_to_replicas(raw_copy, db_idx);
         }
         return Parser::integer_response(len);
     }
@@ -628,7 +694,7 @@ std::string Server::process_command(std::string_view raw, bool from_master, int 
         auto val = (cmd.name == "LPOP") ? storage_.lpop(cmd.args[0]) : storage_.rpop(cmd.args[0]);
         if (val.has_value() && role_ == Role::MASTER) {
             std::string raw_copy(raw);
-            propagate_to_replicas(raw_copy);
+            propagate_to_replicas(raw_copy, db_idx);
         }
         if (!val.has_value()) return Parser::null_response();
         return Parser::bulk_response(val.value());
@@ -659,7 +725,7 @@ std::string Server::process_command(std::string_view raw, bool from_master, int 
         long long added = storage_.sadd(cmd.args[0], members);
         if (added > 0 && role_ == Role::MASTER) {
             std::string raw_copy(raw);
-            propagate_to_replicas(raw_copy);
+            propagate_to_replicas(raw_copy, db_idx);
         }
         return Parser::integer_response(added);
     }
@@ -669,7 +735,7 @@ std::string Server::process_command(std::string_view raw, bool from_master, int 
         long long removed = storage_.srem(cmd.args[0], members);
         if (removed > 0 && role_ == Role::MASTER) {
             std::string raw_copy(raw);
-            propagate_to_replicas(raw_copy);
+            propagate_to_replicas(raw_copy, db_idx);
         }
         return Parser::integer_response(removed);
     }
@@ -706,7 +772,7 @@ std::string Server::process_command(std::string_view raw, bool from_master, int 
         long long added = storage_.zadd(cmd.args[0], members);
         if (role_ == Role::MASTER) {
             std::string raw_copy(raw);
-            propagate_to_replicas(raw_copy);
+            propagate_to_replicas(raw_copy, db_idx);
         }
         return Parser::integer_response(added);
     }
@@ -753,7 +819,7 @@ std::string Server::process_command(std::string_view raw, bool from_master, int 
         bool ok = storage_.expire(cmd.args[0], seconds);
         if (ok && role_ == Role::MASTER) {
             std::string raw_copy(raw);
-            propagate_to_replicas(raw_copy);
+            propagate_to_replicas(raw_copy, db_idx);
         }
         return Parser::integer_response(ok ? 1 : 0);
     }
@@ -762,7 +828,7 @@ std::string Server::process_command(std::string_view raw, bool from_master, int 
         bool ok = storage_.persist(cmd.args[0]);
         if (ok && role_ == Role::MASTER) {
             std::string raw_copy(raw);
-            propagate_to_replicas(raw_copy);
+            propagate_to_replicas(raw_copy, db_idx);
         }
         return Parser::integer_response(ok ? 1 : 0);
     }
@@ -779,7 +845,7 @@ std::string Server::process_command(std::string_view raw, bool from_master, int 
         bool ok = storage_.pexpire(cmd.args[0], millis);
         if (ok && role_ == Role::MASTER) {
             std::string raw_copy(raw);
-            propagate_to_replicas(raw_copy);
+            propagate_to_replicas(raw_copy, db_idx);
         }
         return Parser::integer_response(ok ? 1 : 0);
     }
@@ -834,7 +900,7 @@ std::string Server::process_command(std::string_view raw, bool from_master, int 
         storage_.flush();
         if (role_ == Role::MASTER) {
             std::string raw_copy(raw);
-            propagate_to_replicas(raw_copy);
+            propagate_to_replicas(raw_copy, db_idx);
         }
         return Parser::ok_response();
     }
@@ -951,7 +1017,7 @@ std::string Server::process_command(std::string_view raw, bool from_master, int 
         }
         if (role_ == Role::MASTER) {
             std::string raw_copy(raw);
-            propagate_to_replicas(raw_copy);
+            propagate_to_replicas(raw_copy, db_idx);
         }
         return Parser::integer_response(receivers);
     }

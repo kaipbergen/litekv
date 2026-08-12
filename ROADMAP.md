@@ -62,7 +62,7 @@ Progress is tracked by checking items off below (`- [ ]` → `- [x] (Day N, YYYY
 - [x] CONFIG GET / SET (Day 8, 2026-08-08)
 - [x] AUTH command + requirepass config (Day 9, 2026-08-10)
 - [x] Code coverage reporting (gcov/lcov) (Day 9, 2026-08-10)
-- [ ] SELECT (multiple logical DBs)
+- [x] SELECT (multiple logical DBs) (Day 10, 2026-08-12)
 - [x] COPY key (Day 9, 2026-08-10)
 - [x] RANDOMKEY (Day 9, 2026-08-10)
 - [x] OBJECT ENCODING introspection (Day 9, 2026-08-10)

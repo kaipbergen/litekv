@@ -71,6 +71,7 @@ public:
     std::vector<std::string> zrange(const std::string& key, long long start, long long stop);
     void flush();
     void load_aof();
+    bool save();
     size_t size() const;
     std::vector<std::vector<std::string>> dump_commands();
     uint64_t version();

@@ -922,6 +922,26 @@ std::vector<std::vector<std::string>> Storage::dump_commands() {
     return commands;
 }
 
+bool Storage::save() {
+    std::string tmp_path = aof_path_ + ".rdb.tmp";
+    std::string final_path = aof_path_ + ".rdb";
+    auto commands = dump_commands();
+
+    std::ofstream out(tmp_path, std::ios::trunc);
+    if (!out.is_open()) return false;
+    for (const auto& cmd : commands) {
+        for (size_t i = 0; i < cmd.size(); i++) {
+            if (i > 0) out << ' ';
+            out << cmd[i];
+        }
+        out << '\n';
+    }
+    out.close();
+    if (out.fail()) return false;
+
+    return std::rename(tmp_path.c_str(), final_path.c_str()) == 0;
+}
+
 void Storage::load_aof() {
     std::ifstream file(aof_path_);
     if (!file.is_open()) return;

@@ -68,7 +68,7 @@ Progress is tracked by checking items off below (`- [ ]` → `- [x] (Day N, YYYY
 - [x] OBJECT ENCODING introspection (Day 9, 2026-08-10)
 
 ## Persistence
-- [ ] SAVE (point-in-time RDB-like snapshot)
+- [x] SAVE (point-in-time RDB-like snapshot) (Day 10, 2026-08-12)
 - [ ] BGSAVE (background save)
 - [ ] BGREWRITEAOF (AOF compaction)
 - [ ] Configurable AOF fsync policy (always / everysec / no)

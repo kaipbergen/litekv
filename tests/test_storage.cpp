@@ -6,6 +6,8 @@
 #include <thread>
 #include <chrono>
 #include <algorithm>
+#include <fstream>
+#include <iterator>
 
 using namespace litekv;
 
@@ -664,4 +666,46 @@ TEST_CASE("flush clears all keys", "[storage]") {
     REQUIRE(storage.size() == 2);
     storage.flush();
     REQUIRE(storage.size() == 0);
+}
+
+TEST_CASE("save writes a snapshot file containing the current dataset", "[storage]") {
+    auto path = temp_aof_path("save");
+    auto rdb_path = path + ".rdb";
+    std::remove(path.c_str());
+    std::remove(rdb_path.c_str());
+    std::remove((rdb_path + ".tmp").c_str());
+    Storage storage(path);
+
+    storage.set("foo", "bar");
+    storage.hset("myhash", "field", "value");
+    storage.sadd("myset", {"member"});
+
+    REQUIRE(storage.save());
+
+    std::ifstream in(rdb_path);
+    REQUIRE(in.is_open());
+    std::string contents((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    REQUIRE(contents.find("SET foo bar") != std::string::npos);
+    REQUIRE(contents.find("HSET myhash field value") != std::string::npos);
+    REQUIRE(contents.find("SADD myset member") != std::string::npos);
+
+    std::remove(rdb_path.c_str());
+}
+
+TEST_CASE("save does not modify the live AOF file", "[storage]") {
+    auto path = temp_aof_path("save_no_aof_mutation");
+    auto rdb_path = path + ".rdb";
+    std::remove(path.c_str());
+    std::remove(rdb_path.c_str());
+    Storage storage(path);
+
+    storage.set("k", "v");
+    REQUIRE(storage.save());
+
+    std::ifstream aof(path);
+    std::string aof_contents((std::istreambuf_iterator<char>(aof)), std::istreambuf_iterator<char>());
+    REQUIRE(aof_contents.find("SET k v") != std::string::npos);
+    REQUIRE(aof_contents.find("myhash") == std::string::npos);
+
+    std::remove(rdb_path.c_str());
 }

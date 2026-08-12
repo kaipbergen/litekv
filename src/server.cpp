@@ -896,6 +896,14 @@ std::string Server::process_command(std::string_view raw, bool from_master, int 
         out += Parser::array_response(values);
         return out;
     }
+    else if (cmd.name == "SAVE") {
+        bool ok = true;
+        for (auto& db : dbs_) {
+            if (!db->save()) ok = false;
+        }
+        if (!ok) return Parser::error_response("SAVE failed");
+        return Parser::ok_response();
+    }
     else if (cmd.name == "FLUSHALL") {
         storage_.flush();
         if (role_ == Role::MASTER) {

@@ -692,6 +692,37 @@ TEST_CASE("save writes a snapshot file containing the current dataset", "[storag
     std::remove(rdb_path.c_str());
 }
 
+TEST_CASE("rewrite_aof compacts the AOF file to the current dataset", "[storage]") {
+    auto path = temp_aof_path("rewrite");
+    std::remove(path.c_str());
+    Storage storage(path);
+
+    storage.set("foo", "1");
+    storage.set("foo", "2");
+    storage.set("foo", "3");
+    storage.del("foo");
+    storage.set("bar", "keep");
+
+    {
+        std::ifstream before(path);
+        std::string before_contents((std::istreambuf_iterator<char>(before)), std::istreambuf_iterator<char>());
+        REQUIRE(before_contents.find("SET foo 1") != std::string::npos);
+    }
+
+    REQUIRE(storage.rewrite_aof());
+
+    std::ifstream after(path);
+    std::string after_contents((std::istreambuf_iterator<char>(after)), std::istreambuf_iterator<char>());
+    REQUIRE(after_contents.find("SET bar keep") != std::string::npos);
+    REQUIRE(after_contents.find("SET foo") == std::string::npos);
+
+    storage.set("baz", "appended-after-rewrite");
+    std::ifstream after2(path);
+    std::string after2_contents((std::istreambuf_iterator<char>(after2)), std::istreambuf_iterator<char>());
+    REQUIRE(after2_contents.find("SET baz appended-after-rewrite") != std::string::npos);
+    REQUIRE(after2_contents.find("SET bar keep") != std::string::npos);
+}
+
 TEST_CASE("save does not modify the live AOF file", "[storage]") {
     auto path = temp_aof_path("save_no_aof_mutation");
     auto rdb_path = path + ".rdb";

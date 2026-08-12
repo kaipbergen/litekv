@@ -914,6 +914,16 @@ std::string Server::process_command(std::string_view raw, bool from_master, int 
         }).detach();
         return std::string("+Background saving started\r\n");
     }
+    else if (cmd.name == "BGREWRITEAOF") {
+        if (bgrewriteaof_in_progress_.exchange(true)) {
+            return Parser::error_response("Background append only file rewriting already in progress");
+        }
+        std::thread([this]() {
+            for (auto& db : dbs_) db->rewrite_aof();
+            bgrewriteaof_in_progress_ = false;
+        }).detach();
+        return std::string("+Background append only file rewriting started\r\n");
+    }
     else if (cmd.name == "FLUSHALL") {
         storage_.flush();
         if (role_ == Role::MASTER) {

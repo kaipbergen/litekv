@@ -72,6 +72,7 @@ public:
     void flush();
     void load_aof();
     bool save();
+    bool rewrite_aof();
     size_t size() const;
     std::vector<std::vector<std::string>> dump_commands();
     uint64_t version();
@@ -98,6 +99,7 @@ private:
     void append_aof(const std::string& line);
     void evict_lru();
     void touch(const std::string& key);
+    std::vector<std::vector<std::string>> dump_commands_locked();
 };
 
 } // namespace litekv

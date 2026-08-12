@@ -879,6 +879,10 @@ size_t Storage::size() const {
 
 std::vector<std::vector<std::string>> Storage::dump_commands() {
     std::lock_guard<std::mutex> lock(mutex_);
+    return dump_commands_locked();
+}
+
+std::vector<std::vector<std::string>> Storage::dump_commands_locked() {
     std::vector<std::vector<std::string>> commands;
     auto now = std::chrono::steady_clock::now();
     for (const auto& [key, pair] : data_) {
@@ -940,6 +944,30 @@ bool Storage::save() {
     if (out.fail()) return false;
 
     return std::rename(tmp_path.c_str(), final_path.c_str()) == 0;
+}
+
+bool Storage::rewrite_aof() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    std::string tmp_path = aof_path_ + ".rewrite.tmp";
+    auto commands = dump_commands_locked();
+
+    std::ofstream out(tmp_path, std::ios::trunc);
+    if (!out.is_open()) return false;
+    for (const auto& cmd : commands) {
+        for (size_t i = 0; i < cmd.size(); i++) {
+            if (i > 0) out << ' ';
+            out << cmd[i];
+        }
+        out << '\n';
+    }
+    out.close();
+    if (out.fail()) return false;
+
+    if (std::rename(tmp_path.c_str(), aof_path_.c_str()) != 0) return false;
+
+    if (aof_file_.is_open()) aof_file_.close();
+    aof_file_.open(aof_path_, std::ios::app);
+    return aof_file_.is_open();
 }
 
 void Storage::load_aof() {

@@ -692,6 +692,45 @@ TEST_CASE("save writes a snapshot file containing the current dataset", "[storag
     std::remove(rdb_path.c_str());
 }
 
+TEST_CASE("set_aof_fsync_policy always still persists writes to the AOF file", "[storage]") {
+    auto path = temp_aof_path("fsync_always");
+    std::remove(path.c_str());
+    Storage storage(path);
+
+    storage.set_aof_fsync_policy(AofFsyncPolicy::ALWAYS);
+    storage.set("foo", "bar");
+
+    std::ifstream in(path);
+    std::string contents((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    REQUIRE(contents.find("SET foo bar") != std::string::npos);
+}
+
+TEST_CASE("set_aof_fsync_policy no still persists writes to the AOF file", "[storage]") {
+    auto path = temp_aof_path("fsync_no");
+    std::remove(path.c_str());
+    Storage storage(path);
+
+    storage.set_aof_fsync_policy(AofFsyncPolicy::NO);
+    storage.set("foo", "bar");
+
+    std::ifstream in(path);
+    std::string contents((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    REQUIRE(contents.find("SET foo bar") != std::string::npos);
+}
+
+TEST_CASE("set_aof_fsync_policy everysec still persists writes to the AOF file", "[storage]") {
+    auto path = temp_aof_path("fsync_everysec");
+    std::remove(path.c_str());
+    Storage storage(path);
+
+    storage.set_aof_fsync_policy(AofFsyncPolicy::EVERYSEC);
+    storage.set("foo", "bar");
+
+    std::ifstream in(path);
+    std::string contents((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    REQUIRE(contents.find("SET foo bar") != std::string::npos);
+}
+
 TEST_CASE("rewrite_aof compacts the AOF file to the current dataset", "[storage]") {
     auto path = temp_aof_path("rewrite");
     std::remove(path.c_str());

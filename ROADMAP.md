@@ -71,7 +71,7 @@ Progress is tracked by checking items off below (`- [ ]` → `- [x] (Day N, YYYY
 - [x] SAVE (point-in-time RDB-like snapshot) (Day 10, 2026-08-12)
 - [x] BGSAVE (background save) (Day 10, 2026-08-12)
 - [x] BGREWRITEAOF (AOF compaction) (Day 10, 2026-08-12)
-- [ ] Configurable AOF fsync policy (always / everysec / no)
+- [x] Configurable AOF fsync policy (always / everysec / no) (Day 10, 2026-08-12)
 - [ ] Halfway checkpoint: update README benchmarks + short retrospective
 - [ ] LFU eviction policy
 - [ ] Random eviction policy

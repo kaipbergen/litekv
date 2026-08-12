@@ -1117,6 +1117,16 @@ std::string Server::process_command(std::string_view raw, bool from_master, int 
             return Parser::array_response(flat);
         } else if (sub == "SET") {
             if (cmd.args.size() < 3) return Parser::error_response("wrong number of arguments for CONFIG SET");
+            if (cmd.args[1] == "appendfsync") {
+                std::string val = cmd.args[2];
+                std::transform(val.begin(), val.end(), val.begin(), ::tolower);
+                AofFsyncPolicy policy;
+                if (val == "always") policy = AofFsyncPolicy::ALWAYS;
+                else if (val == "everysec") policy = AofFsyncPolicy::EVERYSEC;
+                else if (val == "no") policy = AofFsyncPolicy::NO;
+                else return Parser::error_response("Invalid argument 'appendfsync'");
+                for (auto& db : dbs_) db->set_aof_fsync_policy(policy);
+            }
             std::lock_guard<std::mutex> lock(config_mutex_);
             config_[cmd.args[1]] = cmd.args[2];
             return Parser::ok_response();

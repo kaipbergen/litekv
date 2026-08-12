@@ -6,6 +6,9 @@
 #include <list>
 #include <deque>
 #include <mutex>
+#include <condition_variable>
+#include <thread>
+#include <atomic>
 #include <optional>
 #include <chrono>
 #include <fstream>
@@ -19,10 +22,15 @@ struct Entry {
     std::optional<std::chrono::steady_clock::time_point> expires_at;
 };
 
+enum class AofFsyncPolicy { ALWAYS, EVERYSEC, NO };
+
 class Storage {
 public:
     explicit Storage(const std::string& aof_path = "litekv.aof",
                      size_t max_keys = 10000);
+    ~Storage();
+    Storage(const Storage&) = delete;
+    Storage& operator=(const Storage&) = delete;
 
     void set(const std::string& key, const std::string& value, int ttl_seconds = -1);
     std::optional<std::string> get(const std::string& key);
@@ -73,6 +81,7 @@ public:
     void load_aof();
     bool save();
     bool rewrite_aof();
+    void set_aof_fsync_policy(AofFsyncPolicy policy);
     size_t size() const;
     std::vector<std::vector<std::string>> dump_commands();
     uint64_t version();
@@ -95,11 +104,21 @@ private:
     size_t max_keys_;
     uint64_t version_ = 0;
 
+    AofFsyncPolicy fsync_policy_ = AofFsyncPolicy::EVERYSEC;
+    bool aof_dirty_ = false;
+    std::atomic<bool> fsync_thread_running_{false};
+    std::thread fsync_thread_;
+    std::mutex fsync_cv_mutex_;
+    std::condition_variable fsync_cv_;
+
     bool is_expired(const Entry& entry) const;
     void append_aof(const std::string& line);
     void evict_lru();
     void touch(const std::string& key);
     std::vector<std::vector<std::string>> dump_commands_locked();
+    void fsync_aof_locked();
+    void start_fsync_thread();
+    void stop_fsync_thread();
 };
 
 } // namespace litekv

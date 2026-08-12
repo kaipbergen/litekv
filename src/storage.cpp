@@ -7,6 +7,8 @@
 #include <cmath>
 #include <cstdio>
 #include <random>
+#include <fcntl.h>
+#include <unistd.h>
 
 namespace litekv {
 
@@ -16,6 +18,55 @@ Storage::Storage(const std::string& aof_path, size_t max_keys)
     if (!aof_file_.is_open()) {
         std::cerr << "Warning: Could not open AOF file: " << aof_path_ << std::endl;
     }
+    start_fsync_thread();
+}
+
+Storage::~Storage() {
+    stop_fsync_thread();
+}
+
+void Storage::start_fsync_thread() {
+    fsync_thread_running_ = true;
+    fsync_thread_ = std::thread([this]() {
+        std::unique_lock<std::mutex> lk(fsync_cv_mutex_);
+        while (fsync_thread_running_) {
+            fsync_cv_.wait_for(lk, std::chrono::seconds(1));
+            if (!fsync_thread_running_) break;
+            lk.unlock();
+            {
+                std::lock_guard<std::mutex> dlock(mutex_);
+                if (fsync_policy_ == AofFsyncPolicy::EVERYSEC && aof_dirty_) {
+                    fsync_aof_locked();
+                    aof_dirty_ = false;
+                }
+            }
+            lk.lock();
+        }
+    });
+}
+
+void Storage::stop_fsync_thread() {
+    {
+        std::lock_guard<std::mutex> lk(fsync_cv_mutex_);
+        fsync_thread_running_ = false;
+    }
+    fsync_cv_.notify_all();
+    if (fsync_thread_.joinable()) fsync_thread_.join();
+}
+
+void Storage::fsync_aof_locked() {
+    if (!aof_file_.is_open()) return;
+    aof_file_.flush();
+    int fd = ::open(aof_path_.c_str(), O_WRONLY);
+    if (fd >= 0) {
+        ::fsync(fd);
+        ::close(fd);
+    }
+}
+
+void Storage::set_aof_fsync_policy(AofFsyncPolicy policy) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    fsync_policy_ = policy;
 }
 
 bool Storage::is_expired(const Entry& entry) const {
@@ -28,6 +79,11 @@ void Storage::append_aof(const std::string& line) {
     if (aof_file_.is_open()) {
         aof_file_ << line << "\n";
         aof_file_.flush();
+        if (fsync_policy_ == AofFsyncPolicy::ALWAYS) {
+            fsync_aof_locked();
+        } else if (fsync_policy_ == AofFsyncPolicy::EVERYSEC) {
+            aof_dirty_ = true;
+        }
     }
 }
 

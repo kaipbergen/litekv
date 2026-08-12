@@ -69,7 +69,7 @@ Progress is tracked by checking items off below (`- [ ]` → `- [x] (Day N, YYYY
 
 ## Persistence
 - [x] SAVE (point-in-time RDB-like snapshot) (Day 10, 2026-08-12)
-- [ ] BGSAVE (background save)
+- [x] BGSAVE (background save) (Day 10, 2026-08-12)
 - [ ] BGREWRITEAOF (AOF compaction)
 - [ ] Configurable AOF fsync policy (always / everysec / no)
 - [ ] Halfway checkpoint: update README benchmarks + short retrospective

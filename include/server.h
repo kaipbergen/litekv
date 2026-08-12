@@ -50,6 +50,7 @@ private:
     std::mutex client_db_mutex_;
     int repl_current_db_ = 0;
     int last_propagated_db_ = -1;
+    std::atomic<bool> bgsave_in_progress_{false};
 
     std::vector<int> replicas_;
     std::mutex replicas_mutex_;

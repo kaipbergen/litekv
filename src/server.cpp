@@ -904,6 +904,16 @@ std::string Server::process_command(std::string_view raw, bool from_master, int 
         if (!ok) return Parser::error_response("SAVE failed");
         return Parser::ok_response();
     }
+    else if (cmd.name == "BGSAVE") {
+        if (bgsave_in_progress_.exchange(true)) {
+            return Parser::error_response("Background save already in progress");
+        }
+        std::thread([this]() {
+            for (auto& db : dbs_) db->save();
+            bgsave_in_progress_ = false;
+        }).detach();
+        return std::string("+Background saving started\r\n");
+    }
     else if (cmd.name == "FLUSHALL") {
         storage_.flush();
         if (role_ == Role::MASTER) {

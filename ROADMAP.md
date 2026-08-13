@@ -1,7 +1,8 @@
-# LiteKV — 100 Days of Code
+# LiteKV — 300 Days of Code
 
-A 100-day roadmap of real, scoped improvements to LiteKV, executed one item per day by an
-automated daily task. Each day: implement the item, build, commit, push. No filler commits —
+A 300-day roadmap of real, scoped improvements to LiteKV, executed in batches by an
+automated daily task (this project rotates with semantic-cache and projectjava, 5 items
+per run on its day). Each run: implement the items, build, commit, push. No filler commits —
 if an item can't be completed and verified, it stays unchecked and gets picked up next run.
 
 Progress is tracked by checking items off below (`- [ ]` → `- [x] (Day N, YYYY-MM-DD)`).
@@ -132,4 +133,50 @@ Progress is tracked by checking items off below (`- [ ]` → `- [x] (Day N, YYYY
 - [ ] Per-client rate limiting / command throttling
 - [ ] Basic ACL (multiple users, permission scopes)
 - [ ] Optional AOF encryption at rest
-- [ ] Day 100: final performance tuning pass + updated benchmark report + 100-day retrospective
+
+## More data type coverage
+- [ ] GETRANGE / SETRANGE
+- [ ] INCRBYFLOAT
+- [ ] GETDEL
+- [ ] SET with NX / XX / GET option flags
+- [ ] BITCOUNT / SETBIT / GETBIT / BITOP
+- [ ] LINSERT / LREM / LSET / LTRIM
+- [ ] BLPOP / BRPOP (blocking list pops)
+- [ ] RPOPLPUSH
+- [ ] HINCRBY / HINCRBYFLOAT
+- [ ] HSETNX
+- [ ] HRANDFIELD
+- [ ] HSCAN
+- [ ] SPOP / SRANDMEMBER
+- [ ] SDIFF / SINTER / SUNION (+ STORE variants)
+- [ ] SSCAN
+- [ ] ZINCRBY
+- [ ] ZRANK / ZREVRANK
+- [ ] ZREM
+- [ ] ZRANGEBYSCORE / ZCOUNT
+- [ ] ZPOPMIN / ZPOPMAX
+- [ ] ZUNIONSTORE / ZINTERSTORE
+
+## Key & admin commands
+- [ ] EXPIREAT / PEXPIREAT
+- [ ] Multi-key EXISTS and DEL
+- [ ] TOUCH
+- [ ] MOVE (between logical DBs)
+- [ ] DBSIZE
+- [ ] FLUSHALL
+- [ ] LASTSAVE
+- [ ] TIME command
+- [ ] UNWATCH
+- [ ] CLIENT GETNAME / CLIENT SETNAME
+- [ ] DUMP / RESTORE (key serialization for migration between instances)
+
+## Stretch: newer data types & platform hardening
+- [ ] HyperLogLog: PFADD / PFCOUNT (approximate cardinality)
+- [ ] Minimal Streams subset: XADD / XRANGE / XREAD
+- [ ] Minimal Geo subset: GEOADD / GEODIST
+- [ ] TLS support for client connections
+- [ ] Config file support (litekv.conf) alongside CLI flags
+- [ ] Protected mode: bind to localhost only by default unless explicitly configured
+- [ ] Chaos test for replication failover (kill master mid-write, verify replica state)
+- [ ] docker-compose for a local master+replica dev cluster
+- [ ] Final day: 300-day program retrospective + updated benchmark report

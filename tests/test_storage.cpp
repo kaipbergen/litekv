@@ -835,6 +835,39 @@ TEST_CASE("load_aof prefers a newer rdb snapshot over the aof", "[storage]") {
     std::remove(rdb_path.c_str());
 }
 
+TEST_CASE("aof entries round-trip through checksum validation on reload", "[storage]") {
+    auto path = temp_aof_path("checksum_roundtrip");
+    std::remove(path.c_str());
+
+    {
+        Storage storage(path);
+        storage.set("k1", "v1");
+        storage.set("k2", "v2");
+    }
+
+    Storage reloaded(path);
+    reloaded.load_aof();
+    REQUIRE(reloaded.get("k1").value() == "v1");
+    REQUIRE(reloaded.get("k2").value() == "v2");
+}
+
+TEST_CASE("load_aof skips entries with a corrupted checksum", "[storage]") {
+    auto path = temp_aof_path("checksum_corrupt");
+    std::remove(path.c_str());
+
+    {
+        std::ofstream aof(path);
+        aof << "SET good1 v1 ;;chk=00000000\n";
+        aof << "SET good2 v2\n";
+    }
+
+    Storage storage(path);
+    storage.load_aof();
+
+    REQUIRE_FALSE(storage.get("good1").has_value());
+    REQUIRE(storage.get("good2").value() == "v2");
+}
+
 TEST_CASE("random eviction policy keeps size bounded at max_keys", "[storage]") {
     auto path = temp_aof_path("random_evict");
     std::remove(path.c_str());

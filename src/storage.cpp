@@ -80,10 +80,34 @@ bool Storage::is_expired(const Entry& entry) const {
     return std::chrono::steady_clock::now() > entry.expires_at.value();
 }
 
+static const std::string kAofChecksumMarker = " ;;chk=";
+
+static uint32_t aof_crc32(const std::string& data) {
+    static uint32_t table[256];
+    static bool table_ready = false;
+    if (!table_ready) {
+        for (uint32_t i = 0; i < 256; i++) {
+            uint32_t c = i;
+            for (int k = 0; k < 8; k++) {
+                c = (c & 1) ? (0xEDB88320u ^ (c >> 1)) : (c >> 1);
+            }
+            table[i] = c;
+        }
+        table_ready = true;
+    }
+    uint32_t crc = 0xFFFFFFFFu;
+    for (unsigned char ch : data) {
+        crc = table[(crc ^ ch) & 0xFFu] ^ (crc >> 8);
+    }
+    return crc ^ 0xFFFFFFFFu;
+}
+
 void Storage::append_aof(const std::string& line) {
     version_++;
     if (aof_file_.is_open()) {
-        aof_file_ << line << "\n";
+        char checksum_hex[9];
+        snprintf(checksum_hex, sizeof(checksum_hex), "%08x", aof_crc32(line));
+        aof_file_ << line << kAofChecksumMarker << checksum_hex << "\n";
         aof_file_.flush();
         if (fsync_policy_ == AofFsyncPolicy::ALWAYS) {
             fsync_aof_locked();
@@ -1092,8 +1116,32 @@ void Storage::load_from_path(const std::string& path) {
 
     std::string line;
     int loaded = 0;
+    int corrupted = 0;
     while (std::getline(file, line)) {
         if (line.empty()) continue;
+
+        auto marker_pos = line.rfind(kAofChecksumMarker);
+        if (marker_pos != std::string::npos) {
+            std::string checksum_hex = line.substr(marker_pos + kAofChecksumMarker.size());
+            std::string content = line.substr(0, marker_pos);
+            bool valid_hex = checksum_hex.size() == 8 &&
+                checksum_hex.find_first_not_of("0123456789abcdefABCDEF") == std::string::npos;
+            uint32_t expected = 0;
+            if (valid_hex) {
+                try {
+                    expected = static_cast<uint32_t>(std::stoul(checksum_hex, nullptr, 16));
+                } catch (...) {
+                    valid_hex = false;
+                }
+            }
+            if (!valid_hex || aof_crc32(content) != expected) {
+                std::cerr << "AOF: skipping corrupted entry (checksum mismatch)" << std::endl;
+                corrupted++;
+                continue;
+            }
+            line = content;
+        }
+
         std::istringstream ss(line);
         std::string cmd;
         ss >> cmd;
@@ -1196,7 +1244,9 @@ void Storage::load_from_path(const std::string& path) {
             zsets_.clear();
         }
     }
-    std::cout << "AOF: loaded " << loaded << " entries" << std::endl;
+    std::cout << "AOF: loaded " << loaded << " entries";
+    if (corrupted > 0) std::cout << " (" << corrupted << " corrupted entries skipped)";
+    std::cout << std::endl;
 }
 
 } // namespace litekv

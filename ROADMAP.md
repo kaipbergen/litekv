@@ -77,7 +77,7 @@ Progress is tracked by checking items off below (`- [ ]` → `- [x] (Day N, YYYY
 - [x] LFU eviction policy (Day 11, 2026-08-15)
 - [x] Random eviction policy (Day 11, 2026-08-15)
 - [x] Prefer RDB over AOF on restart when newer (Day 11, 2026-08-15)
-- [ ] AOF entry checksum / corruption detection
+- [x] AOF entry checksum / corruption detection (Day 11, 2026-08-15)
 - [ ] Graceful recovery from a partial/truncated AOF write
 
 ## Replication resilience

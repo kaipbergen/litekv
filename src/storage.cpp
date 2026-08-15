@@ -1117,6 +1117,7 @@ void Storage::load_from_path(const std::string& path) {
     std::string line;
     int loaded = 0;
     int corrupted = 0;
+    int truncated = 0;
     while (std::getline(file, line)) {
         if (line.empty()) continue;
 
@@ -1146,6 +1147,7 @@ void Storage::load_from_path(const std::string& path) {
         std::string cmd;
         ss >> cmd;
 
+        try {
         if (cmd == "SET") {
             std::string key, value, ex_flag;
             ss >> key >> value;
@@ -1243,9 +1245,14 @@ void Storage::load_from_path(const std::string& path) {
             sets_.clear();
             zsets_.clear();
         }
+        } catch (const std::exception&) {
+            std::cerr << "AOF: skipping malformed/truncated entry" << std::endl;
+            truncated++;
+        }
     }
     std::cout << "AOF: loaded " << loaded << " entries";
     if (corrupted > 0) std::cout << " (" << corrupted << " corrupted entries skipped)";
+    if (truncated > 0) std::cout << " (" << truncated << " malformed/truncated entries skipped)";
     std::cout << std::endl;
 }
 

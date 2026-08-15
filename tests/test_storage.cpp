@@ -868,6 +868,41 @@ TEST_CASE("load_aof skips entries with a corrupted checksum", "[storage]") {
     REQUIRE(storage.get("good2").value() == "v2");
 }
 
+TEST_CASE("load_aof recovers gracefully from a truncated/malformed entry", "[storage]") {
+    auto path = temp_aof_path("truncated_entry");
+    std::remove(path.c_str());
+
+    {
+        std::ofstream aof(path);
+        aof << "SET before v1\n";
+        aof << "ZADD myzset not-a-number member\n";
+        aof << "SET after v2\n";
+    }
+
+    Storage storage(path);
+    REQUIRE_NOTHROW(storage.load_aof());
+
+    REQUIRE(storage.get("before").value() == "v1");
+    REQUIRE(storage.get("after").value() == "v2");
+    REQUIRE(storage.zscore("myzset", "member") == std::nullopt);
+}
+
+TEST_CASE("load_aof recovers from a truncated final line with no trailing newline", "[storage]") {
+    auto path = temp_aof_path("truncated_tail");
+    std::remove(path.c_str());
+
+    {
+        std::ofstream aof(path);
+        aof << "SET before v1\n";
+        aof << "SET cut_off";
+    }
+
+    Storage storage(path);
+    REQUIRE_NOTHROW(storage.load_aof());
+
+    REQUIRE(storage.get("before").value() == "v1");
+}
+
 TEST_CASE("random eviction policy keeps size bounded at max_keys", "[storage]") {
     auto path = temp_aof_path("random_evict");
     std::remove(path.c_str());

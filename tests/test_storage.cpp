@@ -8,6 +8,8 @@
 #include <algorithm>
 #include <fstream>
 #include <iterator>
+#include <utime.h>
+#include <ctime>
 
 using namespace litekv;
 
@@ -802,6 +804,35 @@ TEST_CASE("lfu eviction policy evicts the least frequently accessed key", "[stor
     REQUIRE(storage.get("c").has_value());
     REQUIRE(storage.get("d").has_value());
     REQUIRE_FALSE(storage.get("b").has_value());
+}
+
+TEST_CASE("load_aof prefers a newer rdb snapshot over the aof", "[storage]") {
+    auto path = temp_aof_path("rdb_preferred");
+    auto rdb_path = path + ".rdb";
+    std::remove(path.c_str());
+    std::remove(rdb_path.c_str());
+
+    {
+        std::ofstream aof(path);
+        aof << "SET from_aof old\n";
+    }
+    struct utimbuf old_time;
+    old_time.actime = std::time(nullptr) - 100;
+    old_time.modtime = std::time(nullptr) - 100;
+    utime(path.c_str(), &old_time);
+
+    {
+        std::ofstream rdb(rdb_path);
+        rdb << "SET from_rdb new\n";
+    }
+
+    Storage storage(path);
+    storage.load_aof();
+
+    REQUIRE(storage.get("from_rdb").has_value());
+    REQUIRE_FALSE(storage.get("from_aof").has_value());
+
+    std::remove(rdb_path.c_str());
 }
 
 TEST_CASE("random eviction policy keeps size bounded at max_keys", "[storage]") {

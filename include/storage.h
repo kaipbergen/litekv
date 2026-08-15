@@ -116,6 +116,7 @@ private:
     std::condition_variable fsync_cv_;
 
     bool is_expired(const Entry& entry) const;
+    void load_from_path(const std::string& path);
     void append_aof(const std::string& line);
     void evict();
     void evict_lru();

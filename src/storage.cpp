@@ -9,6 +9,7 @@
 #include <random>
 #include <fcntl.h>
 #include <unistd.h>
+#include <sys/stat.h>
 
 namespace litekv {
 
@@ -1071,7 +1072,22 @@ bool Storage::rewrite_aof() {
 }
 
 void Storage::load_aof() {
-    std::ifstream file(aof_path_);
+    std::string rdb_path = aof_path_ + ".rdb";
+    struct stat aof_stat{};
+    struct stat rdb_stat{};
+    bool aof_exists = ::stat(aof_path_.c_str(), &aof_stat) == 0;
+    bool rdb_exists = ::stat(rdb_path.c_str(), &rdb_stat) == 0;
+
+    if (rdb_exists && (!aof_exists || rdb_stat.st_mtime > aof_stat.st_mtime)) {
+        std::cout << "RDB snapshot is newer than AOF, loading from " << rdb_path << std::endl;
+        load_from_path(rdb_path);
+        return;
+    }
+    load_from_path(aof_path_);
+}
+
+void Storage::load_from_path(const std::string& path) {
+    std::ifstream file(path);
     if (!file.is_open()) return;
 
     std::string line;

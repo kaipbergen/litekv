@@ -33,6 +33,7 @@ Server::Server(int port, const std::string& aof_path, Role role,
     }
     config_ = {
         {"maxmemory", "0"},
+        {"maxmemory-policy", "lru"},
         {"appendonly", "yes"},
         {"appendfsync", "everysec"},
         {"save", ""},
@@ -1126,6 +1127,14 @@ std::string Server::process_command(std::string_view raw, bool from_master, int 
                 else if (val == "no") policy = AofFsyncPolicy::NO;
                 else return Parser::error_response("Invalid argument 'appendfsync'");
                 for (auto& db : dbs_) db->set_aof_fsync_policy(policy);
+            } else if (cmd.args[1] == "maxmemory-policy") {
+                std::string val = cmd.args[2];
+                std::transform(val.begin(), val.end(), val.begin(), ::tolower);
+                EvictionPolicy policy;
+                if (val == "lru" || val == "allkeys-lru") policy = EvictionPolicy::LRU;
+                else if (val == "lfu" || val == "allkeys-lfu") policy = EvictionPolicy::LFU;
+                else return Parser::error_response("Invalid argument 'maxmemory-policy'");
+                for (auto& db : dbs_) db->set_eviction_policy(policy);
             }
             std::lock_guard<std::mutex> lock(config_mutex_);
             config_[cmd.args[1]] = cmd.args[2];

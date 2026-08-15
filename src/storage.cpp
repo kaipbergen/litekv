@@ -69,6 +69,11 @@ void Storage::set_aof_fsync_policy(AofFsyncPolicy policy) {
     fsync_policy_ = policy;
 }
 
+void Storage::set_eviction_policy(EvictionPolicy policy) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    eviction_policy_ = policy;
+}
+
 bool Storage::is_expired(const Entry& entry) const {
     if (!entry.expires_at.has_value()) return false;
     return std::chrono::steady_clock::now() > entry.expires_at.value();
@@ -95,9 +100,18 @@ uint64_t Storage::version() {
 void Storage::touch(const std::string& key) {
     auto it = data_.find(key);
     if (it != data_.end()) {
+        it->second.first.freq++;
         lru_list_.erase(it->second.second);
         lru_list_.push_front(key);
         it->second.second = lru_list_.begin();
+    }
+}
+
+void Storage::evict() {
+    if (eviction_policy_ == EvictionPolicy::LFU) {
+        evict_lfu();
+    } else {
+        evict_lru();
     }
 }
 
@@ -107,6 +121,19 @@ void Storage::evict_lru() {
         data_.erase(lru_key);
         lru_list_.pop_back();
         std::cout << "LRU evicted: " << lru_key << std::endl;
+    }
+}
+
+void Storage::evict_lfu() {
+    while (data_.size() >= max_keys_) {
+        auto min_it = data_.begin();
+        for (auto it = data_.begin(); it != data_.end(); ++it) {
+            if (it->second.first.freq < min_it->second.first.freq) min_it = it;
+        }
+        std::string victim = min_it->first;
+        lru_list_.erase(min_it->second.second);
+        data_.erase(min_it);
+        std::cout << "LFU evicted: " << victim << std::endl;
     }
 }
 
@@ -120,7 +147,7 @@ void Storage::set(const std::string& key, const std::string& value, int ttl_seco
         data_.erase(it);
     }
 
-    evict_lru();
+    evict();
 
     Entry entry;
     entry.value = value;
@@ -166,7 +193,7 @@ bool Storage::setnx(const std::string& key, const std::string& value) {
     }
     if (it != data_.end()) return false;
 
-    evict_lru();
+    evict();
     Entry entry;
     entry.value = value;
     append_aof("SET " + key + " " + value);
@@ -239,11 +266,12 @@ std::optional<long long> Storage::incrby(const std::string& key, long long delta
 
     if (it != data_.end()) {
         it->second.first.value = value_str;
+        it->second.first.freq++;
         lru_list_.erase(it->second.second);
         lru_list_.push_front(key);
         it->second.second = lru_list_.begin();
     } else {
-        evict_lru();
+        evict();
         Entry entry;
         entry.value = value_str;
         lru_list_.push_front(key);
@@ -268,12 +296,13 @@ long long Storage::append(const std::string& key, const std::string& value) {
     if (it != data_.end()) {
         new_value = it->second.first.value + value;
         it->second.first.value = new_value;
+        it->second.first.freq++;
         lru_list_.erase(it->second.second);
         lru_list_.push_front(key);
         it->second.second = lru_list_.begin();
     } else {
         new_value = value;
-        evict_lru();
+        evict();
         Entry entry;
         entry.value = new_value;
         lru_list_.push_front(key);
@@ -886,7 +915,7 @@ bool Storage::copy(const std::string& src, const std::string& dst, bool replace)
     }
 
     if (src_is_string) {
-        evict_lru();
+        evict();
         lru_list_.push_front(dst);
         data_[dst] = {src_entry, lru_list_.begin()};
         if (src_entry.expires_at.has_value()) {

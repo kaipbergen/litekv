@@ -779,3 +779,27 @@ TEST_CASE("save does not modify the live AOF file", "[storage]") {
 
     std::remove(rdb_path.c_str());
 }
+
+TEST_CASE("lfu eviction policy evicts the least frequently accessed key", "[storage]") {
+    auto path = temp_aof_path("lfu_evict");
+    std::remove(path.c_str());
+    Storage storage(path, 3);
+    storage.set_eviction_policy(EvictionPolicy::LFU);
+
+    storage.set("a", "1");
+    storage.set("b", "2");
+    storage.set("c", "3");
+
+    for (int i = 0; i < 5; i++) {
+        storage.get("a");
+        storage.get("c");
+    }
+    storage.get("b");
+
+    storage.set("d", "4");
+
+    REQUIRE(storage.get("a").has_value());
+    REQUIRE(storage.get("c").has_value());
+    REQUIRE(storage.get("d").has_value());
+    REQUIRE_FALSE(storage.get("b").has_value());
+}

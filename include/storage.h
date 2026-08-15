@@ -20,9 +20,11 @@ namespace litekv {
 struct Entry {
     std::string value;
     std::optional<std::chrono::steady_clock::time_point> expires_at;
+    uint64_t freq = 1;
 };
 
 enum class AofFsyncPolicy { ALWAYS, EVERYSEC, NO };
+enum class EvictionPolicy { LRU, LFU };
 
 class Storage {
 public:
@@ -82,6 +84,7 @@ public:
     bool save();
     bool rewrite_aof();
     void set_aof_fsync_policy(AofFsyncPolicy policy);
+    void set_eviction_policy(EvictionPolicy policy);
     size_t size() const;
     std::vector<std::vector<std::string>> dump_commands();
     uint64_t version();
@@ -105,6 +108,7 @@ private:
     uint64_t version_ = 0;
 
     AofFsyncPolicy fsync_policy_ = AofFsyncPolicy::EVERYSEC;
+    EvictionPolicy eviction_policy_ = EvictionPolicy::LRU;
     bool aof_dirty_ = false;
     std::atomic<bool> fsync_thread_running_{false};
     std::thread fsync_thread_;
@@ -113,7 +117,9 @@ private:
 
     bool is_expired(const Entry& entry) const;
     void append_aof(const std::string& line);
+    void evict();
     void evict_lru();
+    void evict_lfu();
     void touch(const std::string& key);
     std::vector<std::vector<std::string>> dump_commands_locked();
     void fsync_aof_locked();

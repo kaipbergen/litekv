@@ -75,7 +75,7 @@ Progress is tracked by checking items off below (`- [ ]` → `- [x] (Day N, YYYY
 - [x] Configurable AOF fsync policy (always / everysec / no) (Day 10, 2026-08-12)
 - [ ] Halfway checkpoint: update README benchmarks + short retrospective
 - [x] LFU eviction policy (Day 11, 2026-08-15)
-- [ ] Random eviction policy
+- [x] Random eviction policy (Day 11, 2026-08-15)
 - [ ] Prefer RDB over AOF on restart when newer
 - [ ] AOF entry checksum / corruption detection
 - [ ] Graceful recovery from a partial/truncated AOF write

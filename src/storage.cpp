@@ -110,6 +110,8 @@ void Storage::touch(const std::string& key) {
 void Storage::evict() {
     if (eviction_policy_ == EvictionPolicy::LFU) {
         evict_lfu();
+    } else if (eviction_policy_ == EvictionPolicy::RANDOM) {
+        evict_random();
     } else {
         evict_lru();
     }
@@ -134,6 +136,19 @@ void Storage::evict_lfu() {
         lru_list_.erase(min_it->second.second);
         data_.erase(min_it);
         std::cout << "LFU evicted: " << victim << std::endl;
+    }
+}
+
+void Storage::evict_random() {
+    static thread_local std::mt19937_64 rng(std::random_device{}());
+    while (data_.size() >= max_keys_) {
+        size_t idx = rng() % data_.size();
+        auto it = data_.begin();
+        std::advance(it, idx);
+        std::string victim = it->first;
+        lru_list_.erase(it->second.second);
+        data_.erase(it);
+        std::cout << "Randomly evicted: " << victim << std::endl;
     }
 }
 

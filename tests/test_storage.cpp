@@ -803,3 +803,16 @@ TEST_CASE("lfu eviction policy evicts the least frequently accessed key", "[stor
     REQUIRE(storage.get("d").has_value());
     REQUIRE_FALSE(storage.get("b").has_value());
 }
+
+TEST_CASE("random eviction policy keeps size bounded at max_keys", "[storage]") {
+    auto path = temp_aof_path("random_evict");
+    std::remove(path.c_str());
+    Storage storage(path, 5);
+    storage.set_eviction_policy(EvictionPolicy::RANDOM);
+
+    for (int i = 0; i < 20; i++) {
+        storage.set("key" + std::to_string(i), "v");
+        REQUIRE(storage.size() <= 5);
+    }
+    REQUIRE(storage.size() == 5);
+}

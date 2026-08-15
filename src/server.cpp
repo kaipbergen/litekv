@@ -1133,6 +1133,7 @@ std::string Server::process_command(std::string_view raw, bool from_master, int 
                 EvictionPolicy policy;
                 if (val == "lru" || val == "allkeys-lru") policy = EvictionPolicy::LRU;
                 else if (val == "lfu" || val == "allkeys-lfu") policy = EvictionPolicy::LFU;
+                else if (val == "random" || val == "allkeys-random") policy = EvictionPolicy::RANDOM;
                 else return Parser::error_response("Invalid argument 'maxmemory-policy'");
                 for (auto& db : dbs_) db->set_eviction_policy(policy);
             }

@@ -24,7 +24,7 @@ struct Entry {
 };
 
 enum class AofFsyncPolicy { ALWAYS, EVERYSEC, NO };
-enum class EvictionPolicy { LRU, LFU };
+enum class EvictionPolicy { LRU, LFU, RANDOM };
 
 class Storage {
 public:
@@ -120,6 +120,7 @@ private:
     void evict();
     void evict_lru();
     void evict_lfu();
+    void evict_random();
     void touch(const std::string& key);
     std::vector<std::vector<std::string>> dump_commands_locked();
     void fsync_aof_locked();

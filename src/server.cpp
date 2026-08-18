@@ -82,6 +82,8 @@ void Server::start() {
 
     if (role_ == Role::REPLICA) {
         std::thread(&Server::connect_to_master, this).detach();
+    } else {
+        std::thread(&Server::replication_heartbeat_loop, this).detach();
     }
 
 #ifdef __linux__
@@ -392,6 +394,24 @@ void Server::propagate_to_replicas(const std::string& cmd, int db_idx) {
     repl_offset_ += static_cast<long long>(cmd.size());
     for (int fd : replicas_) {
         send(fd, cmd.c_str(), cmd.size(), 0);
+    }
+}
+
+void Server::replication_heartbeat_loop() {
+    const int period_seconds = 5;
+    while (running_) {
+        for (int i = 0; i < period_seconds && running_; i++) {
+            std::this_thread::sleep_for(std::chrono::seconds(1));
+        }
+        if (!running_) break;
+
+        std::lock_guard<std::mutex> lock(replicas_mutex_);
+        if (replicas_.empty()) continue;
+        std::string ping = Parser::encode_command({"PING"});
+        repl_offset_ += static_cast<long long>(ping.size());
+        for (int fd : replicas_) {
+            send(fd, ping.c_str(), ping.size(), 0);
+        }
     }
 }
 

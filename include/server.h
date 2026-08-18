@@ -74,6 +74,7 @@ private:
     void connect_to_master();
     int try_connect_to_master();
     void replica_loop(int master_fd);
+    void replication_heartbeat_loop();
     long long subscriber_count_locked(int fd);
     void unsubscribe_all(int fd);
     int get_client_db(int client_fd);

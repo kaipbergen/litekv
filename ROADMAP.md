@@ -81,7 +81,7 @@ Progress is tracked by checking items off below (`- [ ]` → `- [x] (Day N, YYYY
 - [x] Graceful recovery from a partial/truncated AOF write (Day 11, 2026-08-15)
 
 ## Replication resilience
-- [ ] Replication heartbeat/PING keepalive
+- [x] Replication heartbeat/PING keepalive (Day 12, 2026-08-18)
 - [ ] Replication backlog buffer for partial resync
 - [ ] Sub-replication (replica-of-replica) support
 - [ ] REPLICAOF NO ONE (failover promotion)

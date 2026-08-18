@@ -48,11 +48,44 @@ Client (redis-cli / any RESP client)
 
 ## 📊 Benchmark
 
+Measured with `tests/benchmark.py` (10k iterations/command, warmed up) on a single local
+instance, thread-per-connection mode (2026-08-18):
+
 ```
-[PING]  67,069 ops/sec  |  P50: 0.013ms  |  P99: 0.055ms
-[SET]   59,540 ops/sec  |  P50: 0.014ms  |  P99: 0.021ms
-[GET]   72,294 ops/sec  |  P50: 0.014ms  |  P99: 0.019ms
+[PING]  66,862 ops/sec  |  P50: 0.013ms  |  P99: 0.037ms
+[SET]   55,455 ops/sec  |  P50: 0.018ms  |  P99: 0.024ms
+[GET]   71,914 ops/sec  |  P50: 0.014ms  |  P99: 0.018ms
 ```
+
+## 🧭 Halfway Retrospective (Day 11)
+
+11 days into the 300-day roadmap, here's what's landed:
+
+- Full string/hash/list/set/sorted-set command surface (`SET` family, `HSET`, `LPUSH`,
+  `SADD`, `ZADD`, plus TTL and key-introspection commands)
+- `MULTI` / `EXEC` / `DISCARD` / `WATCH` transactions with optimistic locking
+- Pub/Sub (`SUBSCRIBE`, `PSUBSCRIBE`)
+- Master-replica replication with offset tracking, `WAIT`, auto-reconnect with backoff,
+  and full resync on connect
+- Persistence: AOF with configurable fsync policy, checksummed entries, recovery from
+  partial/truncated writes, `SAVE` / `BGSAVE` snapshots, `BGREWRITEAOF`, and RDB-vs-AOF
+  freshness selection on restart
+- LRU, LFU, and random eviction policies
+- CI on every push (GitHub Actions), a Catch2 unit test suite, clang-tidy static analysis,
+  ASan/UBSan debug build target, and gcov/lcov coverage reporting
+
+What's ahead (days 12-300): replication resilience (heartbeats, backlog buffer for
+partial resync, sub-replication, failover promotion), a proper event loop on macOS,
+observability (`INFO` expansion, `SLOWLOG`, `MONITOR`, a `/metrics` endpoint), broader
+data-type coverage (bit ops, a minimal Streams/HyperLogLog subset), and eventually a
+cluster-mode skeleton.
+
+The storage/parser/server split has held up well — most new commands slot cleanly into
+`storage.cpp` (data structure and command logic) or `server.cpp` (protocol dispatch and
+replication propagation) without touching the other. The rough edge is replication state:
+offsets, ACKs, and reconnect bookkeeping currently live as raw fields directly on `Server`,
+which works but is getting cramped — it's a good candidate to split into its own class
+before backlog buffering and sub-replication land.
 
 ## 🎓 Key Implementation Details
 

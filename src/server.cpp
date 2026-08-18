@@ -193,16 +193,37 @@ void Server::epoll_loop() {
                             }
                             break;
                         }
+                        long long requested_offset = -1;
+                        bool has_offset = replconf.args.size() >= 2 && replconf.args[0] == "PSYNC";
+                        if (has_offset) {
+                            try {
+                                requested_offset = std::stoll(replconf.args[1]);
+                            } catch (...) { has_offset = false; }
+                        }
+                        bool can_partial = false;
+                        std::string backlog_slice;
                         {
                             std::lock_guard<std::mutex> lock(replicas_mutex_);
                             if (std::find(replicas_.begin(), replicas_.end(), fd) == replicas_.end()) {
                                 replicas_.push_back(fd);
                             }
-                            last_propagated_db_ = -1;
+                            if (has_offset && requested_offset >= backlog_start_offset_ &&
+                                requested_offset <= repl_offset_.load()) {
+                                can_partial = true;
+                                backlog_slice = backlog_buffer_.substr(requested_offset - backlog_start_offset_);
+                            } else {
+                                last_propagated_db_ = -1;
+                            }
                         }
-                        std::string resp = "+OK\r\n";
-                        send(fd, resp.c_str(), resp.size(), 0);
-                        send_full_resync(fd);
+                        if (can_partial) {
+                            std::string resp = "+CONTINUE\r\n";
+                            send(fd, resp.c_str(), resp.size(), 0);
+                            if (!backlog_slice.empty()) send(fd, backlog_slice.c_str(), backlog_slice.size(), 0);
+                        } else {
+                            std::string resp = "+FULLRESYNC\r\n";
+                            send(fd, resp.c_str(), resp.size(), 0);
+                            send_full_resync(fd);
+                        }
                         break;
                     }
 
@@ -364,16 +385,37 @@ void Server::handle_client(int client_fd) {
                 }
                 continue;
             }
+            long long requested_offset = -1;
+            bool has_offset = replconf.args.size() >= 2 && replconf.args[0] == "PSYNC";
+            if (has_offset) {
+                try {
+                    requested_offset = std::stoll(replconf.args[1]);
+                } catch (...) { has_offset = false; }
+            }
+            bool can_partial = false;
+            std::string backlog_slice;
             {
                 std::lock_guard<std::mutex> lock(replicas_mutex_);
                 if (std::find(replicas_.begin(), replicas_.end(), client_fd) == replicas_.end()) {
                     replicas_.push_back(client_fd);
                 }
-                last_propagated_db_ = -1;
+                if (has_offset && requested_offset >= backlog_start_offset_ &&
+                    requested_offset <= repl_offset_.load()) {
+                    can_partial = true;
+                    backlog_slice = backlog_buffer_.substr(requested_offset - backlog_start_offset_);
+                } else {
+                    last_propagated_db_ = -1;
+                }
             }
-            std::string resp = "+OK\r\n";
-            send(client_fd, resp.c_str(), resp.size(), 0);
-            send_full_resync(client_fd);
+            if (can_partial) {
+                std::string resp = "+CONTINUE\r\n";
+                send(client_fd, resp.c_str(), resp.size(), 0);
+                if (!backlog_slice.empty()) send(client_fd, backlog_slice.c_str(), backlog_slice.size(), 0);
+            } else {
+                std::string resp = "+FULLRESYNC\r\n";
+                send(client_fd, resp.c_str(), resp.size(), 0);
+                send_full_resync(client_fd);
+            }
             continue;
         }
 
@@ -383,15 +425,26 @@ void Server::handle_client(int client_fd) {
     close(client_fd);
 }
 
+void Server::append_to_backlog_locked(const std::string& data) {
+    backlog_buffer_ += data;
+    if (backlog_buffer_.size() > kBacklogMaxBytes) {
+        size_t excess = backlog_buffer_.size() - kBacklogMaxBytes;
+        backlog_buffer_.erase(0, excess);
+        backlog_start_offset_ += static_cast<long long>(excess);
+    }
+}
+
 void Server::propagate_to_replicas(const std::string& cmd, int db_idx) {
     std::lock_guard<std::mutex> lock(replicas_mutex_);
     if (db_idx != last_propagated_db_) {
         std::string sel = Parser::encode_command({"SELECT", std::to_string(db_idx)});
         repl_offset_ += static_cast<long long>(sel.size());
+        append_to_backlog_locked(sel);
         for (int fd : replicas_) send(fd, sel.c_str(), sel.size(), 0);
         last_propagated_db_ = db_idx;
     }
     repl_offset_ += static_cast<long long>(cmd.size());
+    append_to_backlog_locked(cmd);
     for (int fd : replicas_) {
         send(fd, cmd.c_str(), cmd.size(), 0);
     }
@@ -409,6 +462,7 @@ void Server::replication_heartbeat_loop() {
         if (replicas_.empty()) continue;
         std::string ping = Parser::encode_command({"PING"});
         repl_offset_ += static_cast<long long>(ping.size());
+        append_to_backlog_locked(ping);
         for (int fd : replicas_) {
             send(fd, ping.c_str(), ping.size(), 0);
         }
@@ -1236,7 +1290,8 @@ void Server::connect_to_master() {
 
         backoff_seconds = 1;
 
-        std::string replconf = "*1\r\n$8\r\nREPLCONF\r\n";
+        std::string replconf = Parser::encode_command(
+            {"REPLCONF", "PSYNC", std::to_string(repl_offset_.load())});
         send(fd, replconf.c_str(), replconf.size(), 0);
 
         char buf[64];

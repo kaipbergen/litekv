@@ -82,7 +82,7 @@ Progress is tracked by checking items off below (`- [ ]` → `- [x] (Day N, YYYY
 
 ## Replication resilience
 - [x] Replication heartbeat/PING keepalive (Day 12, 2026-08-18)
-- [ ] Replication backlog buffer for partial resync
+- [x] Replication backlog buffer for partial resync (Day 12, 2026-08-18)
 - [ ] Sub-replication (replica-of-replica) support
 - [x] REPLICAOF NO ONE (failover promotion) (Day 12, 2026-08-18)
 - [ ] Benchmark suite expansion (pipelining, mixed workloads)

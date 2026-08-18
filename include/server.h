@@ -58,6 +58,10 @@ private:
     std::atomic<long long> repl_offset_{0};
     std::unordered_map<int, long long> replica_acks_;
 
+    static constexpr size_t kBacklogMaxBytes = 1 << 20;
+    std::string backlog_buffer_;
+    long long backlog_start_offset_ = 0;
+
     std::unordered_map<std::string, std::vector<int>> channel_subs_;
     std::vector<std::pair<std::string, int>> pattern_subs_;
     std::mutex pubsub_mutex_;
@@ -71,6 +75,7 @@ private:
     std::string dispatch_transactional(const std::string& msg, ClientTxState& tx, int client_fd);
     void propagate_to_replicas(const std::string& cmd, int db_idx);
     void send_full_resync(int fd);
+    void append_to_backlog_locked(const std::string& data);
     void connect_to_master();
     int try_connect_to_master();
     void replica_loop(int master_fd);

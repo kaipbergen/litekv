@@ -1315,6 +1315,18 @@ void Server::connect_to_master() {
 void Server::replica_loop(int master_fd) {
     char chunk[4096];
     std::string buffer;
+
+    // Sub-replication: relay each frame we get from our own master, verbatim and in
+    // order, to any replicas connected to us. repl_offset_ then doubles as both "how
+    // far behind our master are we" and "how far along our own relay stream are we",
+    // which keeps a chained replica's backlog offsets consistent with its upstream.
+    auto forward_to_sub_replicas = [this](const std::string& msg) {
+        std::lock_guard<std::mutex> lock(replicas_mutex_);
+        if (replicas_.empty()) return;
+        append_to_backlog_locked(msg);
+        for (int fd : replicas_) send(fd, msg.c_str(), msg.size(), 0);
+    };
+
     while (running_) {
         ssize_t bytes = recv(master_fd, chunk, sizeof(chunk), 0);
         if (bytes <= 0) {
@@ -1345,6 +1357,7 @@ void Server::replica_loop(int master_fd) {
                 buffer.erase(0, pos);
                 process_command(msg, true);
                 repl_offset_ += static_cast<long long>(msg.size());
+                forward_to_sub_replicas(msg);
             } else {
                 size_t end = buffer.find("\r\n");
                 if (end == std::string::npos) break;
@@ -1352,6 +1365,7 @@ void Server::replica_loop(int master_fd) {
                 buffer.erase(0, end + 2);
                 process_command(msg, true);
                 repl_offset_ += static_cast<long long>(msg.size());
+                forward_to_sub_replicas(msg);
             }
 
             std::string ack = Parser::encode_command(

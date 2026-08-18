@@ -960,6 +960,22 @@ std::string Server::process_command(std::string_view raw, bool from_master, int 
                                      std::to_string(storage_.size()) + "\r\n" +
                                      offset_field + ":" + std::to_string(repl_offset_.load()));
     }
+    else if (cmd.name == "REPLICAOF" || cmd.name == "SLAVEOF") {
+        if (cmd.args.size() < 2) return Parser::error_response("wrong number of arguments for REPLICAOF");
+        std::string arg0 = cmd.args[0], arg1 = cmd.args[1];
+        std::transform(arg0.begin(), arg0.end(), arg0.begin(), ::toupper);
+        std::transform(arg1.begin(), arg1.end(), arg1.begin(), ::toupper);
+        if (arg0 == "NO" && arg1 == "ONE") {
+            if (role_ == Role::REPLICA) {
+                role_ = Role::MASTER;
+                if (master_fd_ >= 0) shutdown(master_fd_, SHUT_RDWR);
+                std::thread(&Server::replication_heartbeat_loop, this).detach();
+                std::cout << "REPLICAOF NO ONE: promoted to master" << std::endl;
+            }
+            return Parser::ok_response();
+        }
+        return Parser::error_response("REPLICAOF only supports 'NO ONE' (failover promotion)");
+    }
     else if (cmd.name == "DBSIZE") {
         return Parser::integer_response(static_cast<int>(storage_.size()));
     }
@@ -1206,6 +1222,8 @@ void Server::connect_to_master() {
     int backoff_seconds = 1;
 
     while (running_) {
+        if (role_ != Role::REPLICA) break;
+
         int fd = try_connect_to_master();
 
         if (fd < 0) {
@@ -1230,7 +1248,7 @@ void Server::connect_to_master() {
         replica_loop(fd);
         master_fd_ = -1;
 
-        if (!running_) break;
+        if (!running_ || role_ != Role::REPLICA) break;
 
         std::cerr << "Replica: lost connection to master, reconnecting in "
                   << backoff_seconds << "s" << std::endl;

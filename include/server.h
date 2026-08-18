@@ -42,7 +42,7 @@ private:
     int master_fd_ = -1;
     std::atomic<bool> running_;
     std::vector<std::unique_ptr<Storage>> dbs_;
-    Role role_;
+    std::atomic<Role> role_;
     std::string master_host_;
     int master_port_;
 

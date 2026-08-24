@@ -71,6 +71,7 @@ private:
 
     void accept_loop();
     void handle_client(int client_fd);
+    void apply_idle_timeout(int client_fd);
     std::string process_command(std::string_view raw, bool from_master = false, int client_fd = -1);
     std::string dispatch_transactional(const std::string& msg, ClientTxState& tx, int client_fd);
     void propagate_to_replicas(const std::string& cmd, int db_idx);

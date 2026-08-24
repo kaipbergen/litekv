@@ -12,6 +12,7 @@
 #include <fcntl.h>
 #include <cmath>
 #include <cstdio>
+#include <sys/time.h>
 
 #ifdef __linux__
 #include <sys/epoll.h>
@@ -354,11 +355,26 @@ std::string Server::dispatch_transactional(const std::string& msg, ClientTxState
     return process_command(msg, false, client_fd);
 }
 
+void Server::apply_idle_timeout(int client_fd) {
+    int timeout_secs = 0;
+    {
+        std::lock_guard<std::mutex> lock(config_mutex_);
+        try {
+            timeout_secs = std::stoi(config_["timeout"]);
+        } catch (...) {}
+    }
+    struct timeval tv{};
+    tv.tv_sec = timeout_secs > 0 ? timeout_secs : 0;
+    tv.tv_usec = 0;
+    setsockopt(client_fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+}
+
 void Server::handle_client(int client_fd) {
     char buffer[4096];
     ClientTxState tx;
     std::string pending;
     set_client_db(client_fd, 0);
+    apply_idle_timeout(client_fd);
     while (true) {
         size_t consumed = 0;
         while (true) {
@@ -393,6 +409,10 @@ void Server::handle_client(int client_fd) {
                     std::lock_guard<std::mutex> lock(replicas_mutex_);
                     if (std::find(replicas_.begin(), replicas_.end(), client_fd) == replicas_.end()) {
                         replicas_.push_back(client_fd);
+                        // Replica links are heartbeat-driven, not request/response, so the
+                        // regular client idle timeout doesn't apply once this fd is a replica.
+                        struct timeval no_timeout{};
+                        setsockopt(client_fd, SOL_SOCKET, SO_RCVTIMEO, &no_timeout, sizeof(no_timeout));
                     }
                     if (has_offset && requested_offset >= backlog_start_offset_ &&
                         requested_offset <= repl_offset_.load()) {

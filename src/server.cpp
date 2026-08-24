@@ -4,6 +4,7 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <unistd.h>
@@ -48,6 +49,12 @@ Server::Server(int port, const std::string& aof_path, Role role,
 static void set_nonblocking(int fd) {
     int flags = fcntl(fd, F_GETFL, 0);
     fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+}
+
+static void tune_tcp_client_socket(int fd) {
+    int opt = 1;
+    setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt));
+    setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &opt, sizeof(opt));
 }
 
 static std::string format_score(double value) {
@@ -210,6 +217,7 @@ void Server::epoll_loop() {
                 }
                 num_clients_++;
 
+                tune_tcp_client_socket(client_fd);
                 set_nonblocking(client_fd);
                 epoll_event cev{};
                 cev.events = EPOLLIN;
@@ -350,6 +358,7 @@ void Server::accept_loop() {
             continue;
         }
         num_clients_++;
+        tune_tcp_client_socket(client_fd);
         std::thread(&Server::handle_client, this, client_fd).detach();
     }
 }

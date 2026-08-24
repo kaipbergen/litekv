@@ -2,6 +2,7 @@
 #include "parser.h"
 #include <iostream>
 #include <sys/socket.h>
+#include <sys/un.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
@@ -77,10 +78,33 @@ void Server::start() {
     if (listen(server_fd_, 128) < 0)
         throw std::runtime_error("Failed to listen");
 
+    if (!unix_socket_path_.empty()) {
+        unix_fd_ = socket(AF_UNIX, SOCK_STREAM, 0);
+        if (unix_fd_ < 0) throw std::runtime_error("Failed to create unix socket");
+
+        sockaddr_un uaddr{};
+        uaddr.sun_family = AF_UNIX;
+        if (unix_socket_path_.size() >= sizeof(uaddr.sun_path))
+            throw std::runtime_error("Unix socket path too long");
+        std::strncpy(uaddr.sun_path, unix_socket_path_.c_str(), sizeof(uaddr.sun_path) - 1);
+
+        ::unlink(unix_socket_path_.c_str());
+        if (bind(unix_fd_, (sockaddr*)&uaddr, sizeof(uaddr)) < 0)
+            throw std::runtime_error("Failed to bind unix socket");
+        if (listen(unix_fd_, 128) < 0)
+            throw std::runtime_error("Failed to listen on unix socket");
+
+        std::cout << "LiteKV listening on unix socket " << unix_socket_path_ << std::endl;
+    }
+
     running_ = true;
 
     std::string role_str = (role_ == Role::MASTER) ? "MASTER" : "REPLICA";
     std::cout << "LiteKV [" << role_str << "] started on port " << port_ << std::endl;
+
+    if (unix_fd_ >= 0) {
+        std::thread(&Server::unix_accept_loop, this).detach();
+    }
 
     if (role_ == Role::REPLICA) {
         std::thread(&Server::connect_to_master, this).detach();
@@ -105,6 +129,32 @@ void Server::start() {
 void Server::stop() {
     running_ = false;
     close(server_fd_);
+    if (unix_fd_ >= 0) {
+        close(unix_fd_);
+        ::unlink(unix_socket_path_.c_str());
+    }
+}
+
+void Server::set_unix_socket(const std::string& path) {
+    unix_socket_path_ = path;
+}
+
+void Server::unix_accept_loop() {
+    while (running_) {
+        int client_fd = accept(unix_fd_, nullptr, nullptr);
+        if (client_fd < 0) {
+            if (running_) std::cerr << "Unix socket accept error" << std::endl;
+            continue;
+        }
+        if (num_clients_.load() >= get_max_clients()) {
+            std::string resp = "-ERR max number of clients reached\r\n";
+            send(client_fd, resp.c_str(), resp.size(), 0);
+            close(client_fd);
+            continue;
+        }
+        num_clients_++;
+        std::thread(&Server::handle_client, this, client_fd).detach();
+    }
 }
 
 int Server::get_client_db(int client_fd) {

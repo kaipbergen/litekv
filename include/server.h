@@ -33,12 +33,15 @@ public:
            int master_port = 0);
     void start();
     void stop();
+    void set_unix_socket(const std::string& path);
 
 private:
     static constexpr int kNumDbs = 16;
 
     int port_;
     int server_fd_;
+    int unix_fd_ = -1;
+    std::string unix_socket_path_;
     int master_fd_ = -1;
     std::atomic<bool> running_;
     std::vector<std::unique_ptr<Storage>> dbs_;
@@ -72,6 +75,7 @@ private:
     std::atomic<int> num_clients_{0};
 
     void accept_loop();
+    void unix_accept_loop();
     void handle_client(int client_fd);
     void apply_idle_timeout(int client_fd);
     int get_max_clients();

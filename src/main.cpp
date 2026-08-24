@@ -17,6 +17,7 @@ int main(int argc, char* argv[]) {
     litekv::Role role = litekv::Role::MASTER;
     std::string master_host = "";
     int master_port = 0;
+    std::string unix_socket_path = "";
 
     for (int i = 1; i < argc; i++) {
         std::string arg = argv[i];
@@ -28,6 +29,8 @@ int main(int argc, char* argv[]) {
             role = litekv::Role::REPLICA;
             master_host = argv[++i];
             master_port = std::stoi(argv[++i]);
+        } else if (arg == "--unixsocket" && i + 1 < argc) {
+            unix_socket_path = argv[++i];
         }
     }
 
@@ -37,6 +40,7 @@ int main(int argc, char* argv[]) {
     try {
         litekv::Server server(port, aof_path, role, master_host, master_port);
         g_server = &server;
+        if (!unix_socket_path.empty()) server.set_unix_socket(unix_socket_path);
         server.start();
     } catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << std::endl;

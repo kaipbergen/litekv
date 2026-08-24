@@ -91,7 +91,7 @@ Progress is tracked by checking items off below (`- [ ]` → `- [x] (Day N, YYYY
 - [ ] Non-blocking partial-write buffering for slow clients
 - [x] Idle client timeout (Day 13, 2026-08-24)
 - [x] Max clients limit + graceful rejection (Day 13, 2026-08-24)
-- [ ] Unix domain socket support
+- [x] Unix domain socket support (Day 13, 2026-08-24)
 - [ ] SIGHUP config reload
 - [ ] TCP_NODELAY / SO_KEEPALIVE tuning
 - [ ] kqueue event loop for macOS, part 1 (design + skeleton, replacing thread-per-connection)

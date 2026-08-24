@@ -85,7 +85,7 @@ Progress is tracked by checking items off below (`- [ ]` → `- [x] (Day N, YYYY
 - [x] Replication backlog buffer for partial resync (Day 12, 2026-08-18)
 - [x] Sub-replication (replica-of-replica) support (Day 12, 2026-08-18)
 - [x] REPLICAOF NO ONE (failover promotion) (Day 12, 2026-08-18)
-- [ ] Benchmark suite expansion (pipelining, mixed workloads)
+- [x] Benchmark suite expansion (pipelining, mixed workloads) (Day 13, 2026-08-24)
 
 ## Networking & server
 - [ ] Non-blocking partial-write buffering for slow clients

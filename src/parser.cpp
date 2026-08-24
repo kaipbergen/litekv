@@ -73,6 +73,36 @@ Command Parser::parse(std::string_view input) {
     return cmd;
 }
 
+size_t Parser::command_length(std::string_view input) {
+    if (input.empty()) return 0;
+
+    if (input[0] != '*') {
+        size_t newline = input.find('\n');
+        if (newline == std::string_view::npos) return 0;
+        return newline + 1;
+    }
+
+    size_t pos = 0;
+    size_t newline = input.find("\r\n", pos);
+    if (newline == std::string_view::npos) return 0;
+
+    int count = 0;
+    std::from_chars(input.data() + 1, input.data() + newline, count);
+    pos = newline + 2;
+    if (count < 0) count = 0;
+
+    for (int i = 0; i < count; i++) {
+        newline = input.find("\r\n", pos);
+        if (newline == std::string_view::npos) return 0;
+        pos = newline + 2;
+
+        newline = input.find("\r\n", pos);
+        if (newline == std::string_view::npos) return 0;
+        pos = newline + 2;
+    }
+    return pos;
+}
+
 std::string Parser::ok_response() { return "+OK\r\n"; }
 
 std::string Parser::error_response(std::string_view msg) {

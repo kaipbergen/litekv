@@ -15,6 +15,10 @@ struct Command {
 class Parser {
 public:
     static Command parse(std::string_view input);
+    // Returns the byte length of the first complete command in `input` (mirroring
+    // the same skip/consume logic as parse()), or 0 if `input` doesn't yet contain
+    // one full command. Used to split pipelined commands out of a byte stream.
+    static size_t command_length(std::string_view input);
     static std::string ok_response();
     static std::string error_response(std::string_view msg);
     static std::string bulk_response(std::string_view value);

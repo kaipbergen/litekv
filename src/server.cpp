@@ -357,8 +357,70 @@ std::string Server::dispatch_transactional(const std::string& msg, ClientTxState
 void Server::handle_client(int client_fd) {
     char buffer[4096];
     ClientTxState tx;
+    std::string pending;
     set_client_db(client_fd, 0);
     while (true) {
+        size_t consumed = 0;
+        while (true) {
+            std::string_view remaining(pending.data() + consumed, pending.size() - consumed);
+            size_t cmd_len = Parser::command_length(remaining);
+            if (cmd_len == 0) break;
+            std::string_view raw(remaining.data(), cmd_len);
+
+            if (raw.find("REPLCONF") != std::string_view::npos) {
+                Command replconf = Parser::parse(raw);
+                if (!replconf.args.empty() && replconf.args[0] == "ACK") {
+                    if (replconf.args.size() >= 2) {
+                        try {
+                            long long off = std::stoll(replconf.args[1]);
+                            std::lock_guard<std::mutex> lock(replicas_mutex_);
+                            replica_acks_[client_fd] = off;
+                        } catch (...) {}
+                    }
+                    consumed += cmd_len;
+                    continue;
+                }
+                long long requested_offset = -1;
+                bool has_offset = replconf.args.size() >= 2 && replconf.args[0] == "PSYNC";
+                if (has_offset) {
+                    try {
+                        requested_offset = std::stoll(replconf.args[1]);
+                    } catch (...) { has_offset = false; }
+                }
+                bool can_partial = false;
+                std::string backlog_slice;
+                {
+                    std::lock_guard<std::mutex> lock(replicas_mutex_);
+                    if (std::find(replicas_.begin(), replicas_.end(), client_fd) == replicas_.end()) {
+                        replicas_.push_back(client_fd);
+                    }
+                    if (has_offset && requested_offset >= backlog_start_offset_ &&
+                        requested_offset <= repl_offset_.load()) {
+                        can_partial = true;
+                        backlog_slice = backlog_buffer_.substr(requested_offset - backlog_start_offset_);
+                    } else {
+                        last_propagated_db_ = -1;
+                    }
+                }
+                if (can_partial) {
+                    std::string resp = "+CONTINUE\r\n";
+                    send(client_fd, resp.c_str(), resp.size(), 0);
+                    if (!backlog_slice.empty()) send(client_fd, backlog_slice.c_str(), backlog_slice.size(), 0);
+                } else {
+                    std::string resp = "+FULLRESYNC\r\n";
+                    send(client_fd, resp.c_str(), resp.size(), 0);
+                    send_full_resync(client_fd);
+                }
+                consumed += cmd_len;
+                continue;
+            }
+
+            std::string response = dispatch_transactional(std::string(raw), tx, client_fd);
+            send(client_fd, response.c_str(), response.size(), 0);
+            consumed += cmd_len;
+        }
+        if (consumed > 0) pending.erase(0, consumed);
+
         memset(buffer, 0, sizeof(buffer));
         ssize_t bytes = recv(client_fd, buffer, sizeof(buffer) - 1, 0);
         if (bytes <= 0) {
@@ -370,57 +432,7 @@ void Server::handle_client(int client_fd) {
             replica_acks_.erase(client_fd);
             break;
         }
-
-        std::string_view raw(buffer, bytes);
-
-        if (raw.find("REPLCONF") != std::string_view::npos) {
-            Command replconf = Parser::parse(raw);
-            if (!replconf.args.empty() && replconf.args[0] == "ACK") {
-                if (replconf.args.size() >= 2) {
-                    try {
-                        long long off = std::stoll(replconf.args[1]);
-                        std::lock_guard<std::mutex> lock(replicas_mutex_);
-                        replica_acks_[client_fd] = off;
-                    } catch (...) {}
-                }
-                continue;
-            }
-            long long requested_offset = -1;
-            bool has_offset = replconf.args.size() >= 2 && replconf.args[0] == "PSYNC";
-            if (has_offset) {
-                try {
-                    requested_offset = std::stoll(replconf.args[1]);
-                } catch (...) { has_offset = false; }
-            }
-            bool can_partial = false;
-            std::string backlog_slice;
-            {
-                std::lock_guard<std::mutex> lock(replicas_mutex_);
-                if (std::find(replicas_.begin(), replicas_.end(), client_fd) == replicas_.end()) {
-                    replicas_.push_back(client_fd);
-                }
-                if (has_offset && requested_offset >= backlog_start_offset_ &&
-                    requested_offset <= repl_offset_.load()) {
-                    can_partial = true;
-                    backlog_slice = backlog_buffer_.substr(requested_offset - backlog_start_offset_);
-                } else {
-                    last_propagated_db_ = -1;
-                }
-            }
-            if (can_partial) {
-                std::string resp = "+CONTINUE\r\n";
-                send(client_fd, resp.c_str(), resp.size(), 0);
-                if (!backlog_slice.empty()) send(client_fd, backlog_slice.c_str(), backlog_slice.size(), 0);
-            } else {
-                std::string resp = "+FULLRESYNC\r\n";
-                send(client_fd, resp.c_str(), resp.size(), 0);
-                send_full_resync(client_fd);
-            }
-            continue;
-        }
-
-        std::string response = dispatch_transactional(std::string(raw), tx, client_fd);
-        send(client_fd, response.c_str(), response.size(), 0);
+        pending.append(buffer, bytes);
     }
     close(client_fd);
 }

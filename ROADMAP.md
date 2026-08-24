@@ -90,7 +90,7 @@ Progress is tracked by checking items off below (`- [ ]` → `- [x] (Day N, YYYY
 ## Networking & server
 - [ ] Non-blocking partial-write buffering for slow clients
 - [x] Idle client timeout (Day 13, 2026-08-24)
-- [ ] Max clients limit + graceful rejection
+- [x] Max clients limit + graceful rejection (Day 13, 2026-08-24)
 - [ ] Unix domain socket support
 - [ ] SIGHUP config reload
 - [ ] TCP_NODELAY / SO_KEEPALIVE tuning

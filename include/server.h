@@ -69,9 +69,12 @@ private:
     std::unordered_map<std::string, std::string> config_;
     std::mutex config_mutex_;
 
+    std::atomic<int> num_clients_{0};
+
     void accept_loop();
     void handle_client(int client_fd);
     void apply_idle_timeout(int client_fd);
+    int get_max_clients();
     std::string process_command(std::string_view raw, bool from_master = false, int client_fd = -1);
     std::string dispatch_transactional(const std::string& msg, ClientTxState& tx, int client_fd);
     void propagate_to_replicas(const std::string& cmd, int db_idx);

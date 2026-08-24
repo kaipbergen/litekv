@@ -40,6 +40,7 @@ Server::Server(int port, const std::string& aof_path, Role role,
         {"save", ""},
         {"timeout", "0"},
         {"requirepass", ""},
+        {"maxclients", "10000"},
     };
 }
 
@@ -151,6 +152,14 @@ void Server::epoll_loop() {
                 int client_fd = accept(server_fd_, (sockaddr*)&client_addr, &len);
                 if (client_fd < 0) continue;
 
+                if (num_clients_.load() >= get_max_clients()) {
+                    std::string resp = "-ERR max number of clients reached\r\n";
+                    send(client_fd, resp.c_str(), resp.size(), 0);
+                    close(client_fd);
+                    continue;
+                }
+                num_clients_++;
+
                 set_nonblocking(client_fd);
                 epoll_event cev{};
                 cev.events = EPOLLIN;
@@ -169,6 +178,7 @@ void Server::epoll_loop() {
                     client_tx.erase(fd);
                     remove_client_db(fd);
                     unsubscribe_all(fd);
+                    num_clients_--;
                     std::lock_guard<std::mutex> lock(replicas_mutex_);
                     auto it = std::find(replicas_.begin(), replicas_.end(), fd);
                     if (it != replicas_.end()) replicas_.erase(it);
@@ -265,6 +275,15 @@ void Server::epoll_loop() {
 }
 #endif
 
+int Server::get_max_clients() {
+    std::lock_guard<std::mutex> lock(config_mutex_);
+    try {
+        return std::stoi(config_["maxclients"]);
+    } catch (...) {
+        return 10000;
+    }
+}
+
 void Server::accept_loop() {
     while (running_) {
         sockaddr_in client_addr{};
@@ -274,6 +293,13 @@ void Server::accept_loop() {
             if (running_) std::cerr << "Accept error" << std::endl;
             continue;
         }
+        if (num_clients_.load() >= get_max_clients()) {
+            std::string resp = "-ERR max number of clients reached\r\n";
+            send(client_fd, resp.c_str(), resp.size(), 0);
+            close(client_fd);
+            continue;
+        }
+        num_clients_++;
         std::thread(&Server::handle_client, this, client_fd).detach();
     }
 }
@@ -455,6 +481,7 @@ void Server::handle_client(int client_fd) {
         pending.append(buffer, bytes);
     }
     close(client_fd);
+    num_clients_--;
 }
 
 void Server::append_to_backlog_locked(const std::string& data) {

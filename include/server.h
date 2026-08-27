@@ -11,6 +11,7 @@
 #include <unordered_set>
 #include <optional>
 #include <cstdint>
+#include <chrono>
 namespace litekv {
 
 enum class Role { MASTER, REPLICA };
@@ -73,6 +74,7 @@ private:
     std::mutex config_mutex_;
 
     std::atomic<int> num_clients_{0};
+    std::chrono::steady_clock::time_point start_time_ = std::chrono::steady_clock::now();
 
     void accept_loop();
     void unix_accept_loop();

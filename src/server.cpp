@@ -15,6 +15,7 @@
 #include <cmath>
 #include <cstdio>
 #include <sys/time.h>
+#include <sys/resource.h>
 
 #ifdef __linux__
 #include <sys/epoll.h>
@@ -1128,9 +1129,24 @@ std::string Server::process_command(std::string_view raw, bool from_master, int 
     else if (cmd.name == "INFO") {
         std::string role_str = (role_ == Role::MASTER) ? "master" : "slave";
         std::string offset_field = (role_ == Role::MASTER) ? "master_repl_offset" : "slave_repl_offset";
-        return Parser::bulk_response("role:" + role_str + "\r\nkeys:" +
-                                     std::to_string(storage_.size()) + "\r\n" +
-                                     offset_field + ":" + std::to_string(repl_offset_.load()));
+        auto uptime_secs = std::chrono::duration_cast<std::chrono::seconds>(
+            std::chrono::steady_clock::now() - start_time_).count();
+        struct rusage usage{};
+        getrusage(RUSAGE_SELF, &usage);
+#ifdef __APPLE__
+        long long rss_bytes = usage.ru_maxrss;
+#else
+        long long rss_bytes = static_cast<long long>(usage.ru_maxrss) * 1024;
+#endif
+        std::string info =
+            "role:" + role_str + "\r\n"
+            "keys:" + std::to_string(storage_.size()) + "\r\n" +
+            offset_field + ":" + std::to_string(repl_offset_.load()) + "\r\n"
+            "uptime_in_seconds:" + std::to_string(uptime_secs) + "\r\n"
+            "connected_clients:" + std::to_string(num_clients_.load()) + "\r\n"
+            "used_memory_rss:" + std::to_string(rss_bytes) + "\r\n"
+            "process_id:" + std::to_string(getpid()) + "\r\n";
+        return Parser::bulk_response(info);
     }
     else if (cmd.name == "REPLICAOF" || cmd.name == "SLAVEOF") {
         if (cmd.args.size() < 2) return Parser::error_response("wrong number of arguments for REPLICAOF");

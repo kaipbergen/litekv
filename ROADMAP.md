@@ -98,7 +98,7 @@ Progress is tracked by checking items off below (`- [ ]` → `- [x] (Day N, YYYY
 - [ ] kqueue event loop for macOS, part 2 (integrate + verify)
 
 ## Observability
-- [ ] INFO command expansion (memory, uptime, connected_clients)
+- [x] INFO command expansion (memory, uptime, connected_clients) (Day 14, 2026-08-27)
 - [ ] SLOWLOG
 - [ ] MONITOR
 - [ ] Prometheus /metrics endpoint

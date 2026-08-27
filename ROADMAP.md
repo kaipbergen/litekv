@@ -158,7 +158,7 @@ Progress is tracked by checking items off below (`- [ ]` → `- [x] (Day N, YYYY
 - [ ] ZUNIONSTORE / ZINTERSTORE
 
 ## Key & admin commands
-- [ ] EXPIREAT / PEXPIREAT
+- [x] EXPIREAT / PEXPIREAT (Day 14, 2026-08-27)
 - [ ] Multi-key EXISTS and DEL
 - [ ] TOUCH
 - [ ] MOVE (between logical DBs)

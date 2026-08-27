@@ -16,6 +16,7 @@
 #include <cstdio>
 #include <sys/time.h>
 #include <sys/resource.h>
+#include <limits>
 
 #ifdef __linux__
 #include <sys/epoll.h>
@@ -1037,6 +1038,49 @@ std::string Server::process_command(std::string_view raw, bool from_master, int 
             return Parser::error_response("value is not an integer or out of range");
         }
         bool ok = storage_.pexpire(cmd.args[0], millis);
+        if (ok && role_ == Role::MASTER) {
+            std::string raw_copy(raw);
+            propagate_to_replicas(raw_copy, db_idx);
+        }
+        return Parser::integer_response(ok ? 1 : 0);
+    }
+    else if (cmd.name == "EXPIREAT") {
+        if (cmd.args.size() < 2) return Parser::error_response("wrong number of arguments for EXPIREAT");
+        long long at_secs;
+        try {
+            size_t pos;
+            at_secs = std::stoll(cmd.args[1], &pos);
+            if (pos != cmd.args[1].size()) return Parser::error_response("value is not an integer or out of range");
+        } catch (...) {
+            return Parser::error_response("value is not an integer or out of range");
+        }
+        auto now_secs = std::chrono::duration_cast<std::chrono::seconds>(
+            std::chrono::system_clock::now().time_since_epoch()).count();
+        long long delta = at_secs - now_secs;
+        int ttl_seconds = delta > std::numeric_limits<int>::max() ? std::numeric_limits<int>::max() :
+                           delta < std::numeric_limits<int>::min() ? std::numeric_limits<int>::min() :
+                           static_cast<int>(delta);
+        bool ok = storage_.expire(cmd.args[0], ttl_seconds);
+        if (ok && role_ == Role::MASTER) {
+            std::string raw_copy(raw);
+            propagate_to_replicas(raw_copy, db_idx);
+        }
+        return Parser::integer_response(ok ? 1 : 0);
+    }
+    else if (cmd.name == "PEXPIREAT") {
+        if (cmd.args.size() < 2) return Parser::error_response("wrong number of arguments for PEXPIREAT");
+        long long at_millis;
+        try {
+            size_t pos;
+            at_millis = std::stoll(cmd.args[1], &pos);
+            if (pos != cmd.args[1].size()) return Parser::error_response("value is not an integer or out of range");
+        } catch (...) {
+            return Parser::error_response("value is not an integer or out of range");
+        }
+        auto now_millis = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::system_clock::now().time_since_epoch()).count();
+        long long ttl_ms = at_millis - now_millis;
+        bool ok = storage_.pexpire(cmd.args[0], ttl_ms);
         if (ok && role_ == Role::MASTER) {
             std::string raw_copy(raw);
             propagate_to_replicas(raw_copy, db_idx);

@@ -662,6 +662,7 @@ std::string Server::process_command(std::string_view raw, bool from_master, int 
             cmd.name == "APPEND" || cmd.name == "MSET" || cmd.name == "GETSET" ||
             cmd.name == "SETNX" || cmd.name == "RENAME" || cmd.name == "COPY" ||
             cmd.name == "EXPIRE" || cmd.name == "PERSIST" || cmd.name == "PEXPIRE" ||
+            cmd.name == "EXPIREAT" || cmd.name == "PEXPIREAT" ||
             cmd.name == "HSET" || cmd.name == "HDEL" ||
             cmd.name == "LPUSH" || cmd.name == "RPUSH" ||
             cmd.name == "LPOP" || cmd.name == "RPOP" ||
@@ -694,12 +695,15 @@ std::string Server::process_command(std::string_view raw, bool from_master, int 
     }
     else if (cmd.name == "DEL") {
         if (cmd.args.size() < 1) return Parser::error_response("wrong number of arguments for DEL");
-        bool deleted = storage_.del(cmd.args[0]);
-        if (role_ == Role::MASTER) {
+        long long deleted_count = 0;
+        for (const auto& key : cmd.args) {
+            if (storage_.del(key)) deleted_count++;
+        }
+        if (deleted_count > 0 && role_ == Role::MASTER) {
             std::string raw_copy(raw);
             propagate_to_replicas(raw_copy, db_idx);
         }
-        return Parser::integer_response(deleted ? 1 : 0);
+        return Parser::integer_response(deleted_count);
     }
     else if (cmd.name == "INCR") {
         if (cmd.args.size() < 1) return Parser::error_response("wrong number of arguments for INCR");
@@ -995,7 +999,11 @@ std::string Server::process_command(std::string_view raw, bool from_master, int 
     }
     else if (cmd.name == "EXISTS") {
         if (cmd.args.size() < 1) return Parser::error_response("wrong number of arguments for EXISTS");
-        return Parser::integer_response(storage_.exists(cmd.args[0]) ? 1 : 0);
+        long long count = 0;
+        for (const auto& key : cmd.args) {
+            if (storage_.exists(key)) count++;
+        }
+        return Parser::integer_response(count);
     }
     else if (cmd.name == "TTL") {
         if (cmd.args.size() < 1) return Parser::error_response("wrong number of arguments for TTL");

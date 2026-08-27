@@ -159,7 +159,7 @@ Progress is tracked by checking items off below (`- [ ]` → `- [x] (Day N, YYYY
 
 ## Key & admin commands
 - [x] EXPIREAT / PEXPIREAT (Day 14, 2026-08-27)
-- [ ] Multi-key EXISTS and DEL
+- [x] Multi-key EXISTS and DEL (Day 14, 2026-08-27)
 - [ ] TOUCH
 - [ ] MOVE (between logical DBs)
 - [ ] DBSIZE

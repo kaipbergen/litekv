@@ -165,7 +165,7 @@ Progress is tracked by checking items off below (`- [ ]` → `- [x] (Day N, YYYY
 - [ ] DBSIZE
 - [ ] FLUSHALL
 - [ ] LASTSAVE
-- [ ] TIME command
+- [x] TIME command (Day 14, 2026-08-27)
 - [ ] UNWATCH
 - [ ] CLIENT GETNAME / CLIENT SETNAME
 - [ ] DUMP / RESTORE (key serialization for migration between instances)

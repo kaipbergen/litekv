@@ -1164,6 +1164,15 @@ std::string Server::process_command(std::string_view raw, bool from_master, int 
         }
         return Parser::error_response("REPLICAOF only supports 'NO ONE' (failover promotion)");
     }
+    else if (cmd.name == "TIME") {
+        auto now = std::chrono::system_clock::now().time_since_epoch();
+        auto secs = std::chrono::duration_cast<std::chrono::seconds>(now);
+        auto micros = std::chrono::duration_cast<std::chrono::microseconds>(now) -
+                      std::chrono::duration_cast<std::chrono::microseconds>(secs);
+        std::vector<std::optional<std::string>> values = {
+            std::to_string(secs.count()), std::to_string(micros.count())};
+        return Parser::array_response(values);
+    }
     else if (cmd.name == "DBSIZE") {
         return Parser::integer_response(static_cast<int>(storage_.size()));
     }

@@ -412,6 +412,28 @@ bool Storage::exists(const std::string& key) {
     return sets_.find(key) != sets_.end();
 }
 
+long long Storage::touch(const std::vector<std::string>& keys) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    long long count = 0;
+    for (const auto& key : keys) {
+        auto it = data_.find(key);
+        if (it != data_.end()) {
+            if (is_expired(it->second.first)) {
+                lru_list_.erase(it->second.second);
+                data_.erase(it);
+            } else {
+                touch(key);
+                count++;
+                continue;
+            }
+        }
+        if (hashes_.find(key) != hashes_.end()) { count++; continue; }
+        if (lists_.find(key) != lists_.end()) { count++; continue; }
+        if (sets_.find(key) != sets_.end()) { count++; continue; }
+    }
+    return count;
+}
+
 int Storage::ttl(const std::string& key) {
     std::lock_guard<std::mutex> lock(mutex_);
     auto it = data_.find(key);

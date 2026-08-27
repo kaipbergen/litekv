@@ -160,7 +160,7 @@ Progress is tracked by checking items off below (`- [ ]` → `- [x] (Day N, YYYY
 ## Key & admin commands
 - [x] EXPIREAT / PEXPIREAT (Day 14, 2026-08-27)
 - [x] Multi-key EXISTS and DEL (Day 14, 2026-08-27)
-- [ ] TOUCH
+- [x] TOUCH (Day 14, 2026-08-27)
 - [ ] MOVE (between logical DBs)
 - [ ] DBSIZE
 - [ ] FLUSHALL
@@ -169,6 +169,14 @@ Progress is tracked by checking items off below (`- [ ]` → `- [x] (Day N, YYYY
 - [ ] UNWATCH
 - [ ] CLIENT GETNAME / CLIENT SETNAME
 - [ ] DUMP / RESTORE (key serialization for migration between instances)
+
+## Notes
+- DBSIZE, FLUSHALL, and UNWATCH above are actually already implemented in
+  src/server.cpp (confirmed by reading the code and, for DBSIZE/FLUSHALL,
+  smoke-testing on Day 14) — they just weren't checked off when they landed
+  as part of other items. Leaving them unchecked rather than checking them
+  off with no accompanying commit; a future run can verify + check them off
+  properly, or a human can do it directly.
 
 ## Stretch: newer data types & platform hardening
 - [ ] HyperLogLog: PFADD / PFCOUNT (approximate cardinality)

@@ -47,6 +47,7 @@ public:
     void mset(const std::vector<std::pair<std::string, std::string>>& pairs);
     std::vector<std::optional<std::string>> mget(const std::vector<std::string>& keys);
     bool exists(const std::string& key);
+    long long touch(const std::vector<std::string>& keys);
     int ttl(const std::string& key);
     bool expire(const std::string& key, int ttl_seconds);
     bool persist(const std::string& key);

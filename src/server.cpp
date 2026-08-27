@@ -1005,6 +1005,10 @@ std::string Server::process_command(std::string_view raw, bool from_master, int 
         }
         return Parser::integer_response(count);
     }
+    else if (cmd.name == "TOUCH") {
+        if (cmd.args.size() < 1) return Parser::error_response("wrong number of arguments for TOUCH");
+        return Parser::integer_response(storage_.touch(cmd.args));
+    }
     else if (cmd.name == "TTL") {
         if (cmd.args.size() < 1) return Parser::error_response("wrong number of arguments for TTL");
         return Parser::integer_response(storage_.ttl(cmd.args[0]));

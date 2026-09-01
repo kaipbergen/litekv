@@ -160,6 +160,27 @@ TEST_CASE("getset returns old value and sets new one", "[storage]") {
     REQUIRE(storage.get("foo").value() == "baz");
 }
 
+TEST_CASE("getdel returns the value and removes the key", "[storage]") {
+    auto path = temp_aof_path("getdel");
+    std::remove(path.c_str());
+    Storage storage(path);
+
+    storage.set("foo", "bar");
+    auto val = storage.getdel("foo");
+    REQUIRE(val.has_value());
+    REQUIRE(val.value() == "bar");
+    REQUIRE_FALSE(storage.exists("foo"));
+}
+
+TEST_CASE("getdel on missing key returns nullopt and deletes nothing", "[storage]") {
+    auto path = temp_aof_path("getdel_missing");
+    std::remove(path.c_str());
+    Storage storage(path);
+
+    auto val = storage.getdel("nope");
+    REQUIRE_FALSE(val.has_value());
+}
+
 TEST_CASE("setnx only sets when key is absent", "[storage]") {
     auto path = temp_aof_path("setnx");
     std::remove(path.c_str());

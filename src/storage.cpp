@@ -222,6 +222,12 @@ std::optional<std::string> Storage::getset(const std::string& key, const std::st
     return old_value;
 }
 
+std::optional<std::string> Storage::getdel(const std::string& key) {
+    auto value = get(key);
+    if (value.has_value()) del(key);
+    return value;
+}
+
 bool Storage::setnx(const std::string& key, const std::string& value) {
     std::lock_guard<std::mutex> lock(mutex_);
 

@@ -660,6 +660,7 @@ std::string Server::process_command(std::string_view raw, bool from_master, int 
         if (cmd.name == "SET" || cmd.name == "DEL" || cmd.name == "FLUSHALL" ||
             cmd.name == "INCR" || cmd.name == "INCRBY" || cmd.name == "DECRBY" ||
             cmd.name == "APPEND" || cmd.name == "MSET" || cmd.name == "GETSET" ||
+            cmd.name == "GETDEL" ||
             cmd.name == "SETNX" || cmd.name == "RENAME" || cmd.name == "COPY" ||
             cmd.name == "EXPIRE" || cmd.name == "PERSIST" || cmd.name == "PEXPIRE" ||
             cmd.name == "EXPIREAT" || cmd.name == "PEXPIREAT" ||
@@ -766,6 +767,16 @@ std::string Server::process_command(std::string_view raw, bool from_master, int 
         }
         if (!old_val.has_value()) return Parser::null_response();
         return Parser::bulk_response(old_val.value());
+    }
+    else if (cmd.name == "GETDEL") {
+        if (cmd.args.size() < 1) return Parser::error_response("wrong number of arguments for GETDEL");
+        auto val = storage_.getdel(cmd.args[0]);
+        if (val.has_value() && role_ == Role::MASTER) {
+            std::string raw_copy(raw);
+            propagate_to_replicas(raw_copy, db_idx);
+        }
+        if (!val.has_value()) return Parser::null_response();
+        return Parser::bulk_response(val.value());
     }
     else if (cmd.name == "SETNX") {
         if (cmd.args.size() < 2) return Parser::error_response("wrong number of arguments for SETNX");

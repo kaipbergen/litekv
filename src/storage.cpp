@@ -897,6 +897,50 @@ static std::string format_double(double value) {
     return std::string(buf);
 }
 
+std::optional<std::string> Storage::incrbyfloat(const std::string& key, double delta) {
+    std::lock_guard<std::mutex> lock(mutex_);
+
+    auto it = data_.find(key);
+    if (it != data_.end() && is_expired(it->second.first)) {
+        lru_list_.erase(it->second.second);
+        data_.erase(it);
+        it = data_.end();
+    }
+
+    double current = 0.0;
+    if (it != data_.end()) {
+        const std::string& val = it->second.first.value;
+        try {
+            size_t pos;
+            current = std::stod(val, &pos);
+            if (pos != val.size()) return std::nullopt;
+        } catch (...) {
+            return std::nullopt;
+        }
+    }
+
+    double updated = current + delta;
+    if (!std::isfinite(updated)) return std::nullopt;
+    std::string value_str = format_double(updated);
+
+    if (it != data_.end()) {
+        it->second.first.value = value_str;
+        it->second.first.freq++;
+        lru_list_.erase(it->second.second);
+        lru_list_.push_front(key);
+        it->second.second = lru_list_.begin();
+    } else {
+        evict();
+        Entry entry;
+        entry.value = value_str;
+        lru_list_.push_front(key);
+        data_[key] = {std::move(entry), lru_list_.begin()};
+    }
+
+    append_aof("SET " + key + " " + value_str);
+    return value_str;
+}
+
 long long Storage::zadd(const std::string& key, const std::vector<std::pair<double, std::string>>& members) {
     std::lock_guard<std::mutex> lock(mutex_);
     auto& zset = zsets_[key];

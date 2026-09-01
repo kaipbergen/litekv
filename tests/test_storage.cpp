@@ -91,6 +91,44 @@ TEST_CASE("incrby fails on non-integer value", "[storage]") {
     REQUIRE_FALSE(result.has_value());
 }
 
+TEST_CASE("incrbyfloat increments float values and formats the result", "[storage]") {
+    auto path = temp_aof_path("incrbyfloat");
+    std::remove(path.c_str());
+    Storage storage(path);
+
+    auto v1 = storage.incrbyfloat("price", 10.5);
+    REQUIRE(v1.has_value());
+    REQUIRE(v1.value() == "10.5");
+
+    auto v2 = storage.incrbyfloat("price", 0.25);
+    REQUIRE(v2.has_value());
+    REQUIRE(v2.value() == "10.75");
+
+    auto v3 = storage.incrbyfloat("price", -3.25);
+    REQUIRE(v3.has_value());
+    REQUIRE(v3.value() == "7.5");
+}
+
+TEST_CASE("incrbyfloat on a fresh key starts from zero", "[storage]") {
+    auto path = temp_aof_path("incrbyfloat_fresh");
+    std::remove(path.c_str());
+    Storage storage(path);
+
+    auto v = storage.incrbyfloat("counter", 3.25);
+    REQUIRE(v.has_value());
+    REQUIRE(v.value() == "3.25");
+}
+
+TEST_CASE("incrbyfloat fails on non-numeric value", "[storage]") {
+    auto path = temp_aof_path("incrbyfloat_bad");
+    std::remove(path.c_str());
+    Storage storage(path);
+
+    storage.set("notanumber", "hello");
+    auto result = storage.incrbyfloat("notanumber", 1.0);
+    REQUIRE_FALSE(result.has_value());
+}
+
 TEST_CASE("ttl reports -1 for no expiry and -2 for missing key", "[storage]") {
     auto path = temp_aof_path("ttl");
     std::remove(path.c_str());

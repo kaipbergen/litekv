@@ -43,6 +43,7 @@ public:
     bool copy(const std::string& key, const std::string& newkey, bool replace);
     bool del(const std::string& key);
     std::optional<long long> incrby(const std::string& key, long long delta);
+    std::optional<std::string> incrbyfloat(const std::string& key, double delta);
     long long append(const std::string& key, const std::string& value);
     long long strlen(const std::string& key);
     void mset(const std::vector<std::pair<std::string, std::string>>& pairs);

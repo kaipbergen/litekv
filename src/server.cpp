@@ -659,6 +659,7 @@ std::string Server::process_command(std::string_view raw, bool from_master, int 
     if (role_ == Role::REPLICA && !from_master) {
         if (cmd.name == "SET" || cmd.name == "DEL" || cmd.name == "FLUSHALL" ||
             cmd.name == "INCR" || cmd.name == "INCRBY" || cmd.name == "DECRBY" ||
+            cmd.name == "INCRBYFLOAT" ||
             cmd.name == "APPEND" || cmd.name == "MSET" || cmd.name == "GETSET" ||
             cmd.name == "GETDEL" ||
             cmd.name == "SETNX" || cmd.name == "RENAME" || cmd.name == "COPY" ||
@@ -734,6 +735,24 @@ std::string Server::process_command(std::string_view raw, bool from_master, int 
             propagate_to_replicas(raw_copy, db_idx);
         }
         return Parser::integer_response(result.value());
+    }
+    else if (cmd.name == "INCRBYFLOAT") {
+        if (cmd.args.size() < 2) return Parser::error_response("wrong number of arguments for INCRBYFLOAT");
+        double delta;
+        try {
+            size_t pos;
+            delta = std::stod(cmd.args[1], &pos);
+            if (pos != cmd.args[1].size()) return Parser::error_response("value is not a valid float");
+        } catch (...) {
+            return Parser::error_response("value is not a valid float");
+        }
+        auto result = storage_.incrbyfloat(cmd.args[0], delta);
+        if (!result.has_value()) return Parser::error_response("value is not a valid float");
+        if (role_ == Role::MASTER) {
+            std::string raw_copy(raw);
+            propagate_to_replicas(raw_copy, db_idx);
+        }
+        return Parser::bulk_response(result.value());
     }
     else if (cmd.name == "APPEND") {
         if (cmd.args.size() < 2) return Parser::error_response("wrong number of arguments for APPEND");

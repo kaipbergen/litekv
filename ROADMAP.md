@@ -136,7 +136,7 @@ Progress is tracked by checking items off below (`- [ ]` → `- [x] (Day N, YYYY
 
 ## More data type coverage
 - [ ] GETRANGE / SETRANGE
-- [ ] INCRBYFLOAT
+- [x] INCRBYFLOAT (Day 15, 2026-09-01)
 - [x] GETDEL (Day 15, 2026-09-01)
 - [ ] SET with NX / XX / GET option flags
 - [ ] BITCOUNT / SETBIT / GETBIT / BITOP

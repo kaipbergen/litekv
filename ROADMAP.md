@@ -162,7 +162,7 @@ Progress is tracked by checking items off below (`- [ ]` → `- [x] (Day N, YYYY
 - [x] Multi-key EXISTS and DEL (Day 14, 2026-08-27)
 - [x] TOUCH (Day 14, 2026-08-27)
 - [ ] MOVE (between logical DBs)
-- [ ] DBSIZE
+- [x] DBSIZE (Day 15, 2026-09-01)
 - [ ] FLUSHALL
 - [ ] LASTSAVE
 - [x] TIME command (Day 14, 2026-08-27)

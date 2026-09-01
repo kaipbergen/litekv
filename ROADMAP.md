@@ -166,17 +166,16 @@ Progress is tracked by checking items off below (`- [ ]` → `- [x] (Day N, YYYY
 - [x] FLUSHALL (Day 15, 2026-09-01)
 - [ ] LASTSAVE
 - [x] TIME command (Day 14, 2026-08-27)
-- [ ] UNWATCH
+- [x] UNWATCH (Day 15, 2026-09-01)
 - [ ] CLIENT GETNAME / CLIENT SETNAME
 - [ ] DUMP / RESTORE (key serialization for migration between instances)
 
 ## Notes
-- DBSIZE, FLUSHALL, and UNWATCH above are actually already implemented in
-  src/server.cpp (confirmed by reading the code and, for DBSIZE/FLUSHALL,
-  smoke-testing on Day 14) — they just weren't checked off when they landed
-  as part of other items. Leaving them unchecked rather than checking them
-  off with no accompanying commit; a future run can verify + check them off
-  properly, or a human can do it directly.
+- Day 15 (2026-09-01): Checked off DBSIZE, FLUSHALL, and UNWATCH. All three
+  were already implemented in src/server.cpp (confirmed by reading the code)
+  but had no test coverage or accompanying commit, so they'd been left
+  unchecked since Day 8. Each now has its own commit adding real integration
+  test coverage in tests/integration_admin_commands.py.
 
 ## Stretch: newer data types & platform hardening
 - [ ] HyperLogLog: PFADD / PFCOUNT (approximate cardinality)

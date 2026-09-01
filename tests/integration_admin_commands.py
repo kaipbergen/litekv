@@ -56,6 +56,7 @@ def main():
             return 1
 
         conn = socket.create_connection(("127.0.0.1", PORT))
+        conn_b = socket.create_connection(("127.0.0.1", PORT))
 
         # DBSIZE reflects keys actually present.
         resp = send_command(conn, "DBSIZE")
@@ -75,8 +76,29 @@ def main():
         resp = send_command(conn, "GET", "a")
         assert resp == "$-1\r\n", f"expected nil after FLUSHALL, got {resp!r}"
 
+        # UNWATCH actually clears the watch, not just returns OK: without it,
+        # a concurrent modification to a watched key aborts EXEC; with it,
+        # the same modification no longer matters.
+        send_command(conn, "SET", "watched", "orig")
+        resp = send_command(conn, "WATCH", "watched")
+        assert resp == "+OK\r\n", f"expected WATCH OK, got {resp!r}"
+
+        send_command(conn_b, "SET", "watched", "changed-by-other-client")
+
+        resp = send_command(conn, "UNWATCH")
+        assert resp == "+OK\r\n", f"expected UNWATCH OK, got {resp!r}"
+
+        resp = send_command(conn, "MULTI")
+        assert resp == "+OK\r\n", f"expected MULTI OK, got {resp!r}"
+        send_command(conn, "SET", "watched", "final")
+        resp = send_command(conn, "EXEC")
+        assert resp != "*-1\r\n", (
+            "EXEC was aborted even though UNWATCH should have cleared the watch"
+        )
+
         conn.close()
-        print("PASS: DBSIZE and FLUSHALL behave correctly")
+        conn_b.close()
+        print("PASS: DBSIZE, FLUSHALL, and UNWATCH behave correctly")
         return 0
     finally:
         proc.terminate()

@@ -67,8 +67,16 @@ def main():
         resp = send_command(conn, "DBSIZE")
         assert resp == ":3\r\n", f"expected DBSIZE 3, got {resp!r}"
 
+        # FLUSHALL clears everything, reflected by DBSIZE and GET.
+        resp = send_command(conn, "FLUSHALL")
+        assert resp == "+OK\r\n", f"expected FLUSHALL OK, got {resp!r}"
+        resp = send_command(conn, "DBSIZE")
+        assert resp == ":0\r\n", f"expected DBSIZE 0 after FLUSHALL, got {resp!r}"
+        resp = send_command(conn, "GET", "a")
+        assert resp == "$-1\r\n", f"expected nil after FLUSHALL, got {resp!r}"
+
         conn.close()
-        print("PASS: DBSIZE behaves correctly")
+        print("PASS: DBSIZE and FLUSHALL behave correctly")
         return 0
     finally:
         proc.terminate()

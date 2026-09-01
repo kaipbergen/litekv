@@ -163,7 +163,7 @@ Progress is tracked by checking items off below (`- [ ]` → `- [x] (Day N, YYYY
 - [x] TOUCH (Day 14, 2026-08-27)
 - [ ] MOVE (between logical DBs)
 - [x] DBSIZE (Day 15, 2026-09-01)
-- [ ] FLUSHALL
+- [x] FLUSHALL (Day 15, 2026-09-01)
 - [ ] LASTSAVE
 - [x] TIME command (Day 14, 2026-08-27)
 - [ ] UNWATCH

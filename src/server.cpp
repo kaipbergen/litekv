@@ -665,7 +665,7 @@ std::string Server::process_command(std::string_view raw, bool from_master, int 
             cmd.name == "SETNX" || cmd.name == "RENAME" || cmd.name == "COPY" ||
             cmd.name == "EXPIRE" || cmd.name == "PERSIST" || cmd.name == "PEXPIRE" ||
             cmd.name == "EXPIREAT" || cmd.name == "PEXPIREAT" ||
-            cmd.name == "HSET" || cmd.name == "HDEL" ||
+            cmd.name == "HSET" || cmd.name == "HSETNX" || cmd.name == "HDEL" ||
             cmd.name == "LPUSH" || cmd.name == "RPUSH" ||
             cmd.name == "LPOP" || cmd.name == "RPOP" ||
             cmd.name == "SADD" || cmd.name == "SREM" || cmd.name == "ZADD" || cmd.name == "ZREM" ||
@@ -916,6 +916,15 @@ std::string Server::process_command(std::string_view raw, bool from_master, int 
             propagate_to_replicas(raw_copy, db_idx);
         }
         return Parser::integer_response(added);
+    }
+    else if (cmd.name == "HSETNX") {
+        if (cmd.args.size() < 3) return Parser::error_response("wrong number of arguments for HSETNX");
+        bool set = storage_.hsetnx(cmd.args[0], cmd.args[1], cmd.args[2]);
+        if (set && role_ == Role::MASTER) {
+            std::string raw_copy(raw);
+            propagate_to_replicas(raw_copy, db_idx);
+        }
+        return Parser::integer_response(set ? 1 : 0);
     }
     else if (cmd.name == "HGET") {
         if (cmd.args.size() < 2) return Parser::error_response("wrong number of arguments for HGET");

@@ -782,6 +782,15 @@ bool Storage::hset(const std::string& key, const std::string& field, const std::
     return is_new;
 }
 
+bool Storage::hsetnx(const std::string& key, const std::string& field, const std::string& value) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto& fields = hashes_[key];
+    if (fields.find(field) != fields.end()) return false;
+    fields[field] = value;
+    append_aof("HSET " + key + " " + field + " " + value);
+    return true;
+}
+
 std::optional<std::string> Storage::hget(const std::string& key, const std::string& field) {
     std::lock_guard<std::mutex> lock(mutex_);
     auto it = hashes_.find(key);

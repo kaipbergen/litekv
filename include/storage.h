@@ -69,6 +69,7 @@ public:
     std::pair<size_t, std::vector<std::string>> scan(size_t cursor, const std::string& pattern,
                                                        size_t count);
     bool hset(const std::string& key, const std::string& field, const std::string& value);
+    bool hsetnx(const std::string& key, const std::string& field, const std::string& value);
     std::optional<std::string> hget(const std::string& key, const std::string& field);
     long long hdel(const std::string& key, const std::vector<std::string>& fields);
     std::vector<std::pair<std::string, std::string>> hgetall(const std::string& key);

@@ -144,7 +144,7 @@ Progress is tracked by checking items off below (`- [ ]` → `- [x] (Day N, YYYY
 - [ ] BLPOP / BRPOP (blocking list pops)
 - [ ] RPOPLPUSH
 - [ ] HINCRBY / HINCRBYFLOAT
-- [ ] HSETNX
+- [x] HSETNX (Day 16, 2026-09-08)
 - [ ] HRANDFIELD
 - [ ] HSCAN
 - [ ] SPOP / SRANDMEMBER

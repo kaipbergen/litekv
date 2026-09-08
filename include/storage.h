@@ -91,6 +91,7 @@ public:
     std::optional<double> zscore(const std::string& key, const std::string& member);
     std::vector<std::string> zrange(const std::string& key, long long start, long long stop);
     long long zrem(const std::string& key, const std::vector<std::string>& members);
+    std::optional<double> zincrby(const std::string& key, double delta, const std::string& member);
     void flush();
     void load_aof();
     bool save();

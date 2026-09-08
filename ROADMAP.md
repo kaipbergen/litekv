@@ -150,7 +150,7 @@ Progress is tracked by checking items off below (`- [ ]` → `- [x] (Day N, YYYY
 - [ ] SPOP / SRANDMEMBER
 - [ ] SDIFF / SINTER / SUNION (+ STORE variants)
 - [ ] SSCAN
-- [ ] ZINCRBY
+- [x] ZINCRBY (Day 16, 2026-09-08)
 - [ ] ZRANK / ZREVRANK
 - [x] ZREM (Day 16, 2026-09-08)
 - [ ] ZRANGEBYSCORE / ZCOUNT

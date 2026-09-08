@@ -1111,6 +1111,21 @@ long long Storage::zrem(const std::string& key, const std::vector<std::string>& 
     return removed;
 }
 
+std::optional<double> Storage::zincrby(const std::string& key, double delta, const std::string& member) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto& zset = zsets_[key];
+    double current = 0.0;
+    auto it = zset.find(member);
+    if (it != zset.end()) current = it->second;
+
+    double updated = current + delta;
+    if (!std::isfinite(updated)) return std::nullopt;
+
+    zset[member] = updated;
+    append_aof("ZADD " + key + " " + format_double(updated) + " " + member);
+    return updated;
+}
+
 bool Storage::copy(const std::string& src, const std::string& dst, bool replace) {
     std::lock_guard<std::mutex> lock(mutex_);
     if (src == dst) return false;

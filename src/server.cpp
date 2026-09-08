@@ -668,7 +668,8 @@ std::string Server::process_command(std::string_view raw, bool from_master, int 
             cmd.name == "HSET" || cmd.name == "HDEL" ||
             cmd.name == "LPUSH" || cmd.name == "RPUSH" ||
             cmd.name == "LPOP" || cmd.name == "RPOP" ||
-            cmd.name == "SADD" || cmd.name == "SREM" || cmd.name == "ZADD" || cmd.name == "ZREM") {
+            cmd.name == "SADD" || cmd.name == "SREM" || cmd.name == "ZADD" || cmd.name == "ZREM" ||
+            cmd.name == "ZINCRBY") {
             return Parser::error_response("READONLY You can't write against a read only replica");
         }
     }
@@ -1093,6 +1094,24 @@ std::string Server::process_command(std::string_view raw, bool from_master, int 
             propagate_to_replicas(raw_copy, db_idx);
         }
         return Parser::integer_response(removed);
+    }
+    else if (cmd.name == "ZINCRBY") {
+        if (cmd.args.size() < 3) return Parser::error_response("wrong number of arguments for ZINCRBY");
+        double delta;
+        try {
+            size_t pos;
+            delta = std::stod(cmd.args[1], &pos);
+            if (pos != cmd.args[1].size()) return Parser::error_response("value is not a valid float");
+        } catch (...) {
+            return Parser::error_response("value is not a valid float");
+        }
+        auto updated = storage_.zincrby(cmd.args[0], delta, cmd.args[2]);
+        if (!updated.has_value()) return Parser::error_response("resulting score is not a number (NaN)");
+        if (role_ == Role::MASTER) {
+            std::string raw_copy(raw);
+            propagate_to_replicas(raw_copy, db_idx);
+        }
+        return Parser::bulk_response(format_score(updated.value()));
     }
     else if (cmd.name == "EXISTS") {
         if (cmd.args.size() < 1) return Parser::error_response("wrong number of arguments for EXISTS");

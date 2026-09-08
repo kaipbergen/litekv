@@ -371,6 +371,64 @@ long long Storage::strlen(const std::string& key) {
     return static_cast<long long>(it->second.first.value.size());
 }
 
+std::string Storage::getrange(const std::string& key, long long start, long long end) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto it = data_.find(key);
+    if (it == data_.end()) return "";
+    if (is_expired(it->second.first)) {
+        lru_list_.erase(it->second.second);
+        data_.erase(it);
+        return "";
+    }
+    const std::string& value = it->second.first.value;
+    long long len = static_cast<long long>(value.size());
+    if (len == 0) return "";
+    if (start < 0) start = std::max(len + start, 0LL);
+    if (end < 0) end = len + end;
+    if (end >= len) end = len - 1;
+    if (start > end || start >= len || end < 0) return "";
+    return value.substr(static_cast<size_t>(start), static_cast<size_t>(end - start + 1));
+}
+
+long long Storage::setrange(const std::string& key, long long offset, const std::string& value) {
+    std::lock_guard<std::mutex> lock(mutex_);
+
+    auto it = data_.find(key);
+    if (it != data_.end() && is_expired(it->second.first)) {
+        lru_list_.erase(it->second.second);
+        data_.erase(it);
+        it = data_.end();
+    }
+
+    if (value.empty()) {
+        return (it != data_.end()) ? static_cast<long long>(it->second.first.value.size()) : 0;
+    }
+
+    std::string new_value = (it != data_.end()) ? it->second.first.value : std::string();
+    size_t needed = static_cast<size_t>(offset) + value.size();
+    if (new_value.size() < needed) new_value.resize(needed, '\0');
+    for (size_t i = 0; i < value.size(); i++) {
+        new_value[static_cast<size_t>(offset) + i] = value[i];
+    }
+
+    if (it != data_.end()) {
+        it->second.first.value = new_value;
+        it->second.first.freq++;
+        lru_list_.erase(it->second.second);
+        lru_list_.push_front(key);
+        it->second.second = lru_list_.begin();
+    } else {
+        evict();
+        Entry entry;
+        entry.value = new_value;
+        lru_list_.push_front(key);
+        data_[key] = {std::move(entry), lru_list_.begin()};
+    }
+
+    append_aof("SET " + key + " " + new_value);
+    return static_cast<long long>(new_value.size());
+}
+
 void Storage::mset(const std::vector<std::pair<std::string, std::string>>& pairs) {
     for (const auto& [key, value] : pairs) {
         set(key, value);

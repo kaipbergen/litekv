@@ -46,6 +46,8 @@ public:
     std::optional<std::string> incrbyfloat(const std::string& key, double delta);
     long long append(const std::string& key, const std::string& value);
     long long strlen(const std::string& key);
+    std::string getrange(const std::string& key, long long start, long long end);
+    long long setrange(const std::string& key, long long offset, const std::string& value);
     void mset(const std::vector<std::pair<std::string, std::string>>& pairs);
     std::vector<std::optional<std::string>> mget(const std::vector<std::string>& keys);
     bool exists(const std::string& key);

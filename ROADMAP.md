@@ -135,7 +135,7 @@ Progress is tracked by checking items off below (`- [ ]` → `- [x] (Day N, YYYY
 - [ ] Optional AOF encryption at rest
 
 ## More data type coverage
-- [ ] GETRANGE / SETRANGE
+- [x] GETRANGE / SETRANGE (Day 16, 2026-09-08)
 - [x] INCRBYFLOAT (Day 15, 2026-09-01)
 - [x] GETDEL (Day 15, 2026-09-01)
 - [ ] SET with NX / XX / GET option flags

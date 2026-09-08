@@ -660,7 +660,7 @@ std::string Server::process_command(std::string_view raw, bool from_master, int 
         if (cmd.name == "SET" || cmd.name == "DEL" || cmd.name == "FLUSHALL" ||
             cmd.name == "INCR" || cmd.name == "INCRBY" || cmd.name == "DECRBY" ||
             cmd.name == "INCRBYFLOAT" ||
-            cmd.name == "APPEND" || cmd.name == "MSET" || cmd.name == "GETSET" ||
+            cmd.name == "APPEND" || cmd.name == "SETRANGE" || cmd.name == "MSET" || cmd.name == "GETSET" ||
             cmd.name == "GETDEL" ||
             cmd.name == "SETNX" || cmd.name == "RENAME" || cmd.name == "COPY" ||
             cmd.name == "EXPIRE" || cmd.name == "PERSIST" || cmd.name == "PEXPIRE" ||
@@ -845,6 +845,38 @@ std::string Server::process_command(std::string_view raw, bool from_master, int 
     else if (cmd.name == "STRLEN") {
         if (cmd.args.size() < 1) return Parser::error_response("wrong number of arguments for STRLEN");
         return Parser::integer_response(storage_.strlen(cmd.args[0]));
+    }
+    else if (cmd.name == "GETRANGE") {
+        if (cmd.args.size() < 3) return Parser::error_response("wrong number of arguments for GETRANGE");
+        long long start, end;
+        try {
+            size_t pos;
+            start = std::stoll(cmd.args[1], &pos);
+            if (pos != cmd.args[1].size()) return Parser::error_response("value is not an integer or out of range");
+            end = std::stoll(cmd.args[2], &pos);
+            if (pos != cmd.args[2].size()) return Parser::error_response("value is not an integer or out of range");
+        } catch (...) {
+            return Parser::error_response("value is not an integer or out of range");
+        }
+        return Parser::bulk_response(storage_.getrange(cmd.args[0], start, end));
+    }
+    else if (cmd.name == "SETRANGE") {
+        if (cmd.args.size() < 3) return Parser::error_response("wrong number of arguments for SETRANGE");
+        long long offset;
+        try {
+            size_t pos;
+            offset = std::stoll(cmd.args[1], &pos);
+            if (pos != cmd.args[1].size()) return Parser::error_response("value is not an integer or out of range");
+        } catch (...) {
+            return Parser::error_response("value is not an integer or out of range");
+        }
+        if (offset < 0) return Parser::error_response("offset is out of range");
+        long long new_len = storage_.setrange(cmd.args[0], offset, cmd.args[2]);
+        if (role_ == Role::MASTER) {
+            std::string raw_copy(raw);
+            propagate_to_replicas(raw_copy, db_idx);
+        }
+        return Parser::integer_response(new_len);
     }
     else if (cmd.name == "HSET") {
         if (cmd.args.size() < 3 || (cmd.args.size() - 1) % 2 != 0)

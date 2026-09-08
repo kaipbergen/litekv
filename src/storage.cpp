@@ -990,6 +990,24 @@ std::vector<std::string> Storage::zrange(const std::string& key, long long start
     return result;
 }
 
+long long Storage::zrem(const std::string& key, const std::vector<std::string>& members) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto it = zsets_.find(key);
+    if (it == zsets_.end()) return 0;
+
+    long long removed = 0;
+    std::string line = "ZREM " + key;
+    for (const auto& m : members) {
+        if (it->second.erase(m) > 0) {
+            removed++;
+            line += " " + m;
+        }
+    }
+    if (it->second.empty()) zsets_.erase(it);
+    if (removed > 0) append_aof(line);
+    return removed;
+}
+
 bool Storage::copy(const std::string& src, const std::string& dst, bool replace) {
     std::lock_guard<std::mutex> lock(mutex_);
     if (src == dst) return false;
@@ -1309,6 +1327,15 @@ void Storage::load_from_path(const std::string& path) {
                 zsets_[key][member] = std::stod(score_str);
             }
             loaded++;
+        } else if (cmd == "ZREM") {
+            std::string key;
+            ss >> key;
+            std::string member;
+            auto it = zsets_.find(key);
+            while (ss >> member) {
+                if (it != zsets_.end()) it->second.erase(member);
+            }
+            if (it != zsets_.end() && it->second.empty()) zsets_.erase(it);
         } else if (cmd == "FLUSHALL") {
             data_.clear();
             lru_list_.clear();

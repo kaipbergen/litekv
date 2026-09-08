@@ -668,7 +668,7 @@ std::string Server::process_command(std::string_view raw, bool from_master, int 
             cmd.name == "HSET" || cmd.name == "HDEL" ||
             cmd.name == "LPUSH" || cmd.name == "RPUSH" ||
             cmd.name == "LPOP" || cmd.name == "RPOP" ||
-            cmd.name == "SADD" || cmd.name == "SREM" || cmd.name == "ZADD") {
+            cmd.name == "SADD" || cmd.name == "SREM" || cmd.name == "ZADD" || cmd.name == "ZREM") {
             return Parser::error_response("READONLY You can't write against a read only replica");
         }
     }
@@ -1026,6 +1026,16 @@ std::string Server::process_command(std::string_view raw, bool from_master, int 
         auto items = storage_.zrange(cmd.args[0], start, stop);
         std::vector<std::optional<std::string>> values(items.begin(), items.end());
         return Parser::array_response(values);
+    }
+    else if (cmd.name == "ZREM") {
+        if (cmd.args.size() < 2) return Parser::error_response("wrong number of arguments for ZREM");
+        std::vector<std::string> members(cmd.args.begin() + 1, cmd.args.end());
+        long long removed = storage_.zrem(cmd.args[0], members);
+        if (removed > 0 && role_ == Role::MASTER) {
+            std::string raw_copy(raw);
+            propagate_to_replicas(raw_copy, db_idx);
+        }
+        return Parser::integer_response(removed);
     }
     else if (cmd.name == "EXISTS") {
         if (cmd.args.size() < 1) return Parser::error_response("wrong number of arguments for EXISTS");

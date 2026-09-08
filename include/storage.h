@@ -82,6 +82,7 @@ public:
     long long zadd(const std::string& key, const std::vector<std::pair<double, std::string>>& members);
     std::optional<double> zscore(const std::string& key, const std::string& member);
     std::vector<std::string> zrange(const std::string& key, long long start, long long stop);
+    long long zrem(const std::string& key, const std::vector<std::string>& members);
     void flush();
     void load_aof();
     bool save();

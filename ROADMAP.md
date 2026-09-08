@@ -152,7 +152,7 @@ Progress is tracked by checking items off below (`- [ ]` → `- [x] (Day N, YYYY
 - [ ] SSCAN
 - [ ] ZINCRBY
 - [ ] ZRANK / ZREVRANK
-- [ ] ZREM
+- [x] ZREM (Day 16, 2026-09-08)
 - [ ] ZRANGEBYSCORE / ZCOUNT
 - [ ] ZPOPMIN / ZPOPMAX
 - [ ] ZUNIONSTORE / ZINTERSTORE

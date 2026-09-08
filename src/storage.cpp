@@ -203,6 +203,51 @@ void Storage::set(const std::string& key, const std::string& value, int ttl_seco
     data_[key] = {std::move(entry), lru_list_.begin()};
 }
 
+Storage::SetResult Storage::set_with_options(const std::string& key, const std::string& value,
+                                              int ttl_seconds, bool use_nx, bool use_xx,
+                                              bool want_old) {
+    std::lock_guard<std::mutex> lock(mutex_);
+
+    auto it = data_.find(key);
+    if (it != data_.end() && is_expired(it->second.first)) {
+        lru_list_.erase(it->second.second);
+        data_.erase(it);
+        it = data_.end();
+    }
+
+    bool exists = it != data_.end();
+    SetResult result;
+    result.old_value = (want_old && exists) ? std::optional<std::string>(it->second.first.value)
+                                             : std::nullopt;
+
+    if ((use_nx && exists) || (use_xx && !exists)) {
+        result.set_performed = false;
+        return result;
+    }
+
+    if (exists) {
+        lru_list_.erase(it->second.second);
+        data_.erase(it);
+    }
+
+    evict();
+
+    Entry entry;
+    entry.value = value;
+    if (ttl_seconds > 0) {
+        entry.expires_at = std::chrono::steady_clock::now() +
+                           std::chrono::seconds(ttl_seconds);
+        append_aof("SET " + key + " " + value + " EX " + std::to_string(ttl_seconds));
+    } else {
+        append_aof("SET " + key + " " + value);
+    }
+
+    lru_list_.push_front(key);
+    data_[key] = {std::move(entry), lru_list_.begin()};
+    result.set_performed = true;
+    return result;
+}
+
 std::optional<std::string> Storage::get(const std::string& key) {
     std::lock_guard<std::mutex> lock(mutex_);
     auto it = data_.find(key);

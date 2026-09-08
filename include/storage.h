@@ -35,6 +35,12 @@ public:
     Storage& operator=(const Storage&) = delete;
 
     void set(const std::string& key, const std::string& value, int ttl_seconds = -1);
+    struct SetResult {
+        bool set_performed;
+        std::optional<std::string> old_value;
+    };
+    SetResult set_with_options(const std::string& key, const std::string& value, int ttl_seconds,
+                                bool use_nx, bool use_xx, bool want_old);
     std::optional<std::string> get(const std::string& key);
     std::optional<std::string> getset(const std::string& key, const std::string& value);
     std::optional<std::string> getdel(const std::string& key);

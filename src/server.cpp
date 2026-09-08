@@ -678,15 +678,40 @@ std::string Server::process_command(std::string_view raw, bool from_master, int 
     else if (cmd.name == "SET") {
         if (cmd.args.size() < 2) return Parser::error_response("wrong number of arguments for SET");
         int ttl = -1;
-        if (cmd.args.size() == 4 &&
-            (cmd.args[2] == "EX" || cmd.args[2] == "ex")) {
-            ttl = std::stoi(cmd.args[3]);
+        bool use_nx = false, use_xx = false, want_get = false;
+        for (size_t i = 2; i < cmd.args.size(); i++) {
+            std::string opt = cmd.args[i];
+            std::transform(opt.begin(), opt.end(), opt.begin(), ::toupper);
+            if (opt == "EX" && i + 1 < cmd.args.size()) {
+                try {
+                    size_t pos;
+                    ttl = std::stoi(cmd.args[++i], &pos);
+                    if (pos != cmd.args[i].size()) return Parser::error_response("value is not an integer or out of range");
+                } catch (...) {
+                    return Parser::error_response("value is not an integer or out of range");
+                }
+            } else if (opt == "NX") {
+                use_nx = true;
+            } else if (opt == "XX") {
+                use_xx = true;
+            } else if (opt == "GET") {
+                want_get = true;
+            } else {
+                return Parser::error_response("syntax error");
+            }
         }
-        storage_.set(cmd.args[0], cmd.args[1], ttl);
-        if (role_ == Role::MASTER) {
+        if (use_nx && use_xx) return Parser::error_response("syntax error");
+
+        auto result = storage_.set_with_options(cmd.args[0], cmd.args[1], ttl, use_nx, use_xx, want_get);
+        if (result.set_performed && role_ == Role::MASTER) {
             std::string raw_copy(raw);
             propagate_to_replicas(raw_copy, db_idx);
         }
+        if (want_get) {
+            if (!result.old_value.has_value()) return Parser::null_response();
+            return Parser::bulk_response(result.old_value.value());
+        }
+        if (!result.set_performed) return Parser::null_response();
         return Parser::ok_response();
     }
     else if (cmd.name == "GET") {

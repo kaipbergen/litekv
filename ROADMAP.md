@@ -138,7 +138,7 @@ Progress is tracked by checking items off below (`- [ ]` → `- [x] (Day N, YYYY
 - [x] GETRANGE / SETRANGE (Day 16, 2026-09-08)
 - [x] INCRBYFLOAT (Day 15, 2026-09-01)
 - [x] GETDEL (Day 15, 2026-09-01)
-- [ ] SET with NX / XX / GET option flags
+- [x] SET with NX / XX / GET option flags (Day 16, 2026-09-08)
 - [ ] BITCOUNT / SETBIT / GETBIT / BITOP
 - [ ] LINSERT / LREM / LSET / LTRIM
 - [ ] BLPOP / BRPOP (blocking list pops)
